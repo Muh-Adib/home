@@ -8,6 +8,7 @@ use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
 use App\Models\PropertyExpense;
 use App\Models\StaffPayroll;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use Carbon\Carbon;
@@ -39,28 +40,25 @@ class PayrollCalculationService
         $permissionDeductionRate = (float) ($rates['permission_deduction_rate'] ?? 75000);
 
         $defaultSalaries = [
-            'super_admin' => 5000000.0,
+            'super_admin' => 3500000.0,
             'property_manager' => 4500000.0,
-            'finance' => 4000000.0,
-            'front_desk' => 3000000.0,
-            'housekeeping' => 2500000.0,
+            'finance' => 2000000.0,
+            'front_desk' => 1700000.0,
+            'housekeeping' => 1600000.0,
         ];
 
-        // Fetch staff
-        $staff = User::withTrashed()
+        // Fetch staff (Strictly active, non-deleted users)
+        $staff = User::query()
             ->where('role', '!=', 'guest')
-            ->where(function ($q) use ($startDate, $endDate) {
-                $q->where('created_at', '<=', $endDate)
-                    ->where(function ($sub) use ($startDate) {
-                        $sub->whereNull('deleted_at')
-                            ->orWhere('deleted_at', '>=', $startDate);
-                    });
-            })
+            ->whereNull('deleted_at')
             ->orderBy('name')
-            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time', 'base_salary', 'created_at', 'deleted_at']);
+            ->get(['id', 'name', 'role', 'status', 'fingerprint_id', 'shift_start_time', 'shift_end_time', 'base_salary', 'holiday_quota', 'join_date', 'resign_date', 'created_at', 'deleted_at']);
 
-        // Fetch finalized performance bonuses
-        $finalizedBonuses = $this->performanceService->getFinalizedBonusesForMonth($month, $year);
+        // Fetch performance bonuses (or compute on-the-fly if not present)
+        $performanceBonuses = $this->performanceService->getBonusesForMonth($month, $year);
+        if (empty($performanceBonuses)) {
+            $performanceBonuses = $this->performanceService->calculateAndSaveMonthlyBonuses($month, $year, $rates, false);
+        }
 
         // Fetch stored active payrolls
         $activePayrolls = StaffPayroll::where('month', $month)
@@ -74,22 +72,34 @@ class PayrollCalculationService
         foreach ($staff as $s) {
             $existing = $activePayrolls->get($s->id);
 
-            // Active employment days & proration
+            // Active employment days & proration logic (uses official join_date and resign_date)
+            $standardWorkingDays = (float) ($rates['proration_standard_days'] ?? SystemSetting::get('proration_standard_days', 26));
+            if ($standardWorkingDays <= 0) {
+                $standardWorkingDays = 26.0;
+            }
+
+            $userJoinDate = $s->join_date ? Carbon::parse($s->join_date) : null;
+            $userResignDate = $s->resign_date ? Carbon::parse($s->resign_date) : null;
+
+            $joinedInTargetMonth = $userJoinDate && $userJoinDate->between($startDate, $endDate);
+            $resignedInTargetMonth = $userResignDate && $userResignDate->between($startDate, $endDate);
+
             $activeDays = 0;
             for ($d = 1; $d <= $daysInMonth; $d++) {
                 $dateCarbon = Carbon::create($year, $month, $d);
-                if ($dateCarbon->lt(Carbon::parse($s->created_at)->startOfDay())) {
+                if ($joinedInTargetMonth && $dateCarbon->lt($userJoinDate->startOfDay())) {
                     continue;
                 }
-                if ($s->deleted_at && $dateCarbon->gt(Carbon::parse($s->deleted_at)->endOfDay())) {
+                if ($resignedInTargetMonth && $dateCarbon->gt($userResignDate->endOfDay())) {
                     continue;
                 }
-                if ($dateCarbon->dayOfWeek !== Carbon::SUNDAY) {
+                if (! $dateCarbon->isSunday()) {
                     $activeDays++;
                 }
             }
 
-            $prorationFactor = min(1.0, $activeDays / 26.0);
+            $isProratedAuto = $joinedInTargetMonth || $resignedInTargetMonth;
+            $prorationFactor = $isProratedAuto ? min(1.0, $activeDays / $standardWorkingDays) : 1.0;
             $originalBaseSalary = (float) ($s->base_salary > 0 ? $s->base_salary : ($defaultSalaries[$s->role] ?? 2000000.0));
             $baseSalary = round($originalBaseSalary * $prorationFactor);
 
@@ -97,7 +107,7 @@ class PayrollCalculationService
             $attSummary = $this->attendanceService->getMonthlyAttendanceSummary($s->id, $month, $year);
 
             // Bonus metrics from Staff Performance module
-            $bonusRecord = $finalizedBonuses[$s->id] ?? null;
+            $bonusRecord = $performanceBonuses[$s->id] ?? null;
             $hkBonus = (float) ($bonusRecord?->housekeeping_bonus ?? 0.0);
             $fdFirstNightBonus = (float) ($bonusRecord?->frontdesk_first_night_bonus ?? 0.0);
             $fdNextNightsShare = (float) ($bonusRecord?->frontdesk_next_nights_bonus_share ?? 0.0);
@@ -136,7 +146,7 @@ class PayrollCalculationService
                 $loansDetails[] = [
                     'id' => $loan->id,
                     'amount' => (float) $loan->amount,
-                    'disbursed_at' => $loan->disbursed_at->toDateString(),
+                    'disbursed_at' => Carbon::parse($loan->disbursed_at)->toDateString(),
                     'outstanding' => $rem,
                     'notes' => $loan->notes,
                 ];
@@ -145,6 +155,26 @@ class PayrollCalculationService
             $suggestedLoanDeduction = min($outstandingLoans, $baseSalary * 0.2);
 
             if ($existing) {
+                $exBase = $existing->status !== 'paid' ? $baseSalary : (float) $existing->base_salary;
+                $exHkBonus = (float) $existing->housekeeping_bonus;
+                $exStandbyBonus = (float) $existing->standby_bonus;
+                $exFdFirst = (float) $existing->frontdesk_first_night_bonus;
+                $exFdNext = (float) $existing->frontdesk_next_nights_bonus_share;
+                $exPerf = (float) $existing->performance_bonus;
+                $exOvertime = (float) $existing->overtime_bonus;
+                $exCustomAllow = $customAllowance;
+
+                $exLate = $existing->status !== 'paid' ? $lateDeduction : (float) $existing->late_deduction;
+                $exLoan = (float) $existing->loan_deduction;
+                $exSick = $existing->status !== 'paid' ? $sickDeduction : (float) $existing->sick_deduction;
+                $exPerm = $existing->status !== 'paid' ? $permissionDeduction : (float) $existing->permission_deduction;
+                $exAbsent = $existing->status !== 'paid' ? $absentDeduction : (float) $existing->absent_deduction;
+                $exCustomDed = $customDeduction;
+
+                $existingTotalBonuses = $exHkBonus + $exStandbyBonus + $exFdFirst + $exFdNext + $exPerf + $exOvertime + $exCustomAllow;
+                $existingTotalDeductions = $exLate + $exLoan + $exSick + $exPerm + $exAbsent + $exCustomDed;
+                $calculatedTotalSalary = max(0.0, $exBase + $existingTotalBonuses - $existingTotalDeductions);
+
                 $payrolls[] = [
                     'id' => $existing->id,
                     'user_id' => $s->id,
@@ -153,32 +183,32 @@ class PayrollCalculationService
                     'fingerprint_id' => $s->fingerprint_id,
                     'version' => $existing->version,
                     'batch_id' => $existing->batch_id,
-                    'base_salary' => (float) $existing->base_salary,
-                    'attendance_days' => $existing->attendance_days,
-                    'absent_days' => $existing->absent_days,
-                    'sick_days' => $existing->sick_days,
-                    'sick_deduction' => (float) $existing->sick_deduction,
-                    'permission_days' => $existing->permission_days,
-                    'permission_deduction' => (float) $existing->permission_deduction,
-                    'absent_deduction' => (float) $existing->absent_deduction,
-                    'late_days' => $existing->late_days,
-                    'late_hours' => (float) $existing->late_hours,
-                    'standby_nights' => $existing->standby_nights,
-                    'late_deduction' => (float) $existing->late_deduction,
-                    'loan_deduction' => (float) $existing->loan_deduction,
-                    'housekeeping_bonus' => (float) $existing->housekeeping_bonus,
-                    'standby_bonus' => (float) $existing->standby_bonus,
-                    'frontdesk_first_night_bonus' => (float) $existing->frontdesk_first_night_bonus,
-                    'frontdesk_next_nights_bonus_share' => (float) $existing->frontdesk_next_nights_bonus_share,
-                    'performance_bonus' => (float) $existing->performance_bonus,
+                    'base_salary' => $exBase,
+                    'attendance_days' => $existing->status !== 'paid' ? (int) $attSummary['present_days'] : $existing->attendance_days,
+                    'absent_days' => $existing->status !== 'paid' ? $absentDays : $existing->absent_days,
+                    'sick_days' => $existing->status !== 'paid' ? $sickDays : $existing->sick_days,
+                    'sick_deduction' => $exSick,
+                    'permission_days' => $existing->status !== 'paid' ? $permissionDays : $existing->permission_days,
+                    'permission_deduction' => $exPerm,
+                    'absent_deduction' => $exAbsent,
+                    'late_days' => $existing->status !== 'paid' ? (int) $attSummary['late_days'] : $existing->late_days,
+                    'late_hours' => $existing->status !== 'paid' ? $lateHours : (float) $existing->late_hours,
+                    'standby_nights' => $existing->status !== 'paid' ? $standbyNights : $existing->standby_nights,
+                    'late_deduction' => $exLate,
+                    'loan_deduction' => $exLoan,
+                    'housekeeping_bonus' => $exHkBonus,
+                    'standby_bonus' => $exStandbyBonus,
+                    'frontdesk_first_night_bonus' => $exFdFirst,
+                    'frontdesk_next_nights_bonus_share' => $exFdNext,
+                    'performance_bonus' => $exPerf,
                     'custom_allowance' => $customAllowance,
                     'custom_deduction' => $customDeduction,
                     'custom_allowance_reason' => $customAllowanceReason,
                     'custom_deduction_reason' => $customDeductionReason,
                     'overtime_hours' => (float) $existing->overtime_hours,
-                    'overtime_bonus' => (float) $existing->overtime_bonus,
+                    'overtime_bonus' => $exOvertime,
                     'holiday_days' => $existing->holiday_days,
-                    'total_salary' => (float) $existing->total_salary,
+                    'total_salary' => $calculatedTotalSalary,
                     'status' => $existing->status,
                     'paid_at' => $existing->paid_at ? $existing->paid_at->toIso8601String() : null,
                     'approved_at' => $existing->approved_at ? $existing->approved_at->toIso8601String() : null,
@@ -189,6 +219,9 @@ class PayrollCalculationService
                     'original_base_salary' => $originalBaseSalary,
                     'prorated' => $prorationFactor < 1.0,
                     'active_employment_days' => $activeDays,
+                    'holiday_quota' => $s->holiday_quota ?? 4,
+                    'join_date' => $s->join_date ? Carbon::parse($s->join_date)->toDateString() : null,
+                    'resign_date' => $s->resign_date ? Carbon::parse($s->resign_date)->toDateString() : null,
                     'bonus_finalized' => (bool) $bonusRecord,
                     'kpi_details' => $existing->kpi_details ?? ($bonusRecord?->details['kpi'] ?? []),
                     'points_details' => $existing->points_details ?? ($bonusRecord?->details['housekeeping_points'] ?? []),
@@ -209,6 +242,9 @@ class PayrollCalculationService
                     'version' => 1,
                     'batch_id' => null,
                     'base_salary' => $baseSalary,
+                    'holiday_quota' => $s->holiday_quota ?? 4,
+                    'join_date' => $s->join_date ? Carbon::parse($s->join_date)->toDateString() : null,
+                    'resign_date' => $s->resign_date ? Carbon::parse($s->resign_date)->toDateString() : null,
                     'attendance_days' => $attSummary['present_days'],
                     'absent_days' => $absentDays,
                     'sick_days' => $sickDays,
@@ -281,10 +317,25 @@ class PayrollCalculationService
 
             foreach ($payrollsData as $row) {
                 $base = (float) $row['base_salary'];
-                $totalSalary = (float) $row['total_salary'];
                 $loanDeduction = (float) $row['loan_deduction'];
                 $customAllowance = (float) ($row['custom_allowance'] ?? 0);
                 $customDeduction = (float) ($row['custom_deduction'] ?? 0);
+
+                $hkBonus = (float) ($row['housekeeping_bonus'] ?? 0);
+                $standbyBonus = (float) ($row['standby_bonus'] ?? 0);
+                $fdFirst = (float) ($row['frontdesk_first_night_bonus'] ?? 0);
+                $fdNext = (float) ($row['frontdesk_next_nights_bonus_share'] ?? 0);
+                $perfBonus = (float) ($row['performance_bonus'] ?? 0);
+                $overtimeBonus = (float) ($row['overtime_bonus'] ?? 0);
+
+                $lateDeduction = (float) ($row['late_deduction'] ?? 0);
+                $sickDeduction = (float) ($row['sick_deduction'] ?? 0);
+                $permissionDeduction = (float) ($row['permission_deduction'] ?? 0);
+                $absentDeduction = (float) ($row['absent_deduction'] ?? 0);
+
+                $totalBonuses = $hkBonus + $standbyBonus + $fdFirst + $fdNext + $perfBonus + $overtimeBonus + $customAllowance;
+                $totalDeductions = $lateDeduction + $loanDeduction + $sickDeduction + $permissionDeduction + $absentDeduction + $customDeduction;
+                $totalSalary = max(0.0, $base + $totalBonuses - $totalDeductions);
 
                 $allowanceDetails = [
                     'housekeeping_bonus' => (float) ($row['housekeeping_bonus'] ?? 0),

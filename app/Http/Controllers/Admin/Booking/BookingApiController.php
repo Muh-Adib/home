@@ -414,7 +414,7 @@ class BookingApiController extends Controller
                 'account_number' => 'nullable|string|max:50',
                 'account_name' => 'nullable|string|max:255',
                 'notes' => 'nullable|string|max:1000',
-                'proof_of_payment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+                'proof_of_payment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
             ]);
         } catch (ValidationException $e) {
             Log::error('Validation failed in storePayment: '.json_encode($e->errors()).' | Payload: '.json_encode($request->all()));

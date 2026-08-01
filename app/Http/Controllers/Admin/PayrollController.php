@@ -46,6 +46,10 @@ class PayrollController extends Controller
 
         // Fetch stored rate settings from SystemSetting or fallback to defaults
         $rates = [
+            'bonus_booking_fo' => (float) $request->input('bonus_booking_fo', SystemSetting::get('bonus_booking_fo', 3000)),
+            'bonus_night_fo' => (float) $request->input('bonus_night_fo', SystemSetting::get('bonus_night_fo', 1000)),
+            'bonus_booking_hk' => (float) $request->input('bonus_booking_hk', SystemSetting::get('bonus_booking_hk', 3000)),
+            'bonus_night_hk' => (float) $request->input('bonus_night_hk', SystemSetting::get('bonus_night_hk', 5000)),
             'first_night_rate' => (float) $request->input('first_night_rate', SystemSetting::get('first_night_rate', 1000)),
             'next_night_rate' => (float) $request->input('next_night_rate', SystemSetting::get('next_night_rate', 1000)),
             'housekeeping_bonus_mode' => (string) $request->input('housekeeping_bonus_mode', SystemSetting::get('housekeeping_bonus_mode', 'rate_per_point')),
@@ -61,10 +65,11 @@ class PayrollController extends Controller
             'permission_deduction_rate' => (float) $request->input('permission_deduction_rate', SystemSetting::get('permission_deduction_rate', 75000)),
             'follow_up_rate' => (float) $request->input('follow_up_rate', SystemSetting::get('follow_up_rate', 1000)),
             'creation_rate' => (float) $request->input('creation_rate', SystemSetting::get('creation_rate', 1000)),
+            'proration_standard_days' => (float) $request->input('proration_standard_days', SystemSetting::get('proration_standard_days', 26)),
         ];
 
         // If request has rates explicitly, automatically persist them to SystemSetting
-        if ($request->has('first_night_rate') || $request->has('housekeeping_rate_per_point')) {
+        if ($request->has('first_night_rate') || $request->has('housekeeping_rate_per_point') || $request->has('bonus_booking_fo')) {
             SystemSetting::setMany($rates, 'payroll_rates');
         }
 
@@ -75,15 +80,10 @@ class PayrollController extends Controller
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
 
-        $staff = User::withTrashed()
+        $staff = User::query()
             ->where('role', '!=', 'guest')
-            ->where(function ($q) use ($startDate, $endDate) {
-                $q->where('created_at', '<=', $endDate)
-                    ->where(function ($sub) use ($startDate) {
-                        $sub->whereNull('deleted_at')
-                            ->orWhere('deleted_at', '>=', $startDate);
-                    });
-            })
+            ->whereNull('deleted_at')
+            ->where('created_at', '<=', $endDate)
             ->orderBy('name')
             ->get(['id', 'name', 'role']);
 
@@ -147,18 +147,24 @@ class PayrollController extends Controller
 
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
+        $daysInMonth = $startDate->daysInMonth;
 
-        $staff = User::where('role', '!=', 'guest')->orderBy('name')->get(['id', 'name', 'role', 'fingerprint_id']);
+        $staff = User::query()
+            ->where('role', '!=', 'guest')
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'fingerprint_id']);
 
         $attendances = Attendance::with(['user:id,name,role', 'corrections.corrector:id,name'])
             ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->orderBy('date', 'desc')
+            ->orderBy('date', 'asc')
             ->orderBy('user_id')
             ->get();
 
         return Inertia::render('Admin/Finance/Attendance', [
             'staff' => $staff,
             'attendances' => $attendances,
+            'daysInMonth' => $daysInMonth,
             'filters' => [
                 'month' => $month,
                 'year' => $year,
@@ -198,8 +204,8 @@ class PayrollController extends Controller
                     $highestColIdx = Coordinate::columnIndexFromString($highestColumn);
 
                     for ($colStart = 1; $colStart < $highestColIdx; $colStart += 15) {
-                        $name = $sheet->getCellByColumnAndRow($colStart + 9, 4)->getValue();
-                        $fingerprintId = $sheet->getCellByColumnAndRow($colStart + 9, 5)->getValue();
+                        $name = $sheet->getCell([$colStart + 9, 4])->getValue();
+                        $fingerprintId = $sheet->getCell([$colStart + 9, 5])->getValue();
 
                         if (! $name && ! $fingerprintId) {
                             continue;
@@ -211,7 +217,7 @@ class PayrollController extends Controller
                         $daysLogs = [];
 
                         for ($row = 13; $row <= 43; $row++) {
-                            $dayLabel = $sheet->getCellByColumnAndRow($colStart, $row)->getValue();
+                            $dayLabel = $sheet->getCell([$colStart, $row])->getValue();
                             if (! $dayLabel) {
                                 continue;
                             }
@@ -222,10 +228,10 @@ class PayrollController extends Controller
                             }
                             $dateStr = Carbon::create($year, $month, $day)->toDateString();
 
-                            $inPagi = $sheet->getCellByColumnAndRow($colStart + 1, $row)->getValue();
-                            $outPagi = $sheet->getCellByColumnAndRow($colStart + 3, $row)->getValue();
-                            $inSiang = $sheet->getCellByColumnAndRow($colStart + 6, $row)->getValue();
-                            $outSiang = $sheet->getCellByColumnAndRow($colStart + 8, $row)->getValue();
+                            $inPagi = $sheet->getCell([$colStart + 1, $row])->getValue();
+                            $outPagi = $sheet->getCell([$colStart + 3, $row])->getValue();
+                            $inSiang = $sheet->getCell([$colStart + 6, $row])->getValue();
+                            $outSiang = $sheet->getCell([$colStart + 8, $row])->getValue();
 
                             $checkIn = $inPagi ?: $inSiang;
                             $checkOut = $outSiang ?: $outPagi;
@@ -296,20 +302,36 @@ class PayrollController extends Controller
     public function correctAttendance(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'attendance_id' => 'required|exists:attendances,id',
+            'attendance_id' => 'nullable|exists:attendances,id',
+            'user_id' => 'required_without:attendance_id|exists:users,id',
+            'date' => 'required_without:attendance_id|date',
             'check_in' => 'nullable|string',
             'check_out' => 'nullable|string',
+            'status' => 'nullable|string|in:present,sick,permission,absent,holiday,off,standby',
             'reason' => 'required|string',
             'notes' => 'nullable|string',
         ]);
 
+        $attendanceId = $validated['attendance_id'] ?? null;
+        if (! $attendanceId && ! empty($validated['user_id']) && ! empty($validated['date'])) {
+            $user = User::findOrFail($validated['user_id']);
+            $att = $this->attendanceService->calculateDailyAttendance(
+                $user,
+                Carbon::parse($validated['date']),
+                $validated['check_in'] ?? null,
+                $validated['check_out'] ?? null
+            );
+            $attendanceId = $att->id;
+        }
+
         $this->attendanceService->correctAttendance(
-            (int) $validated['attendance_id'],
-            $validated['check_in'],
-            $validated['check_out'],
+            (int) $attendanceId,
+            $validated['check_in'] ?? null,
+            $validated['check_out'] ?? null,
             $validated['reason'],
-            $validated['notes'],
-            $request->user()
+            $validated['notes'] ?? null,
+            $request->user(),
+            $validated['status'] ?? null
         );
 
         return redirect()->back()->with('success', 'Koreksi absensi berhasil disimpan dengan catatan audit log.');
@@ -499,6 +521,9 @@ class PayrollController extends Controller
             'shift_start_time' => 'required|string',
             'shift_end_time' => 'required|string',
             'base_salary' => 'required|numeric|min:0',
+            'holiday_quota' => 'nullable|integer|min:0',
+            'join_date' => 'nullable|date',
+            'resign_date' => 'nullable|date',
         ]);
 
         $u = User::findOrFail($validated['user_id']);
@@ -507,9 +532,20 @@ class PayrollController extends Controller
             'shift_start_time' => $validated['shift_start_time'],
             'shift_end_time' => $validated['shift_end_time'],
             'base_salary' => $validated['base_salary'],
+            'holiday_quota' => $validated['holiday_quota'] ?? 4,
+            'join_date' => $validated['join_date'] ?? null,
+            'resign_date' => $validated['resign_date'] ?? null,
         ]);
 
-        return redirect()->back()->with('success', 'Pengaturan shift & gaji staff berhasil diperbarui.');
+        // Sync active unpaid payroll records for this user to reflect new base salary immediately
+        StaffPayroll::where('user_id', $u->id)
+            ->where('is_active', true)
+            ->where('status', '!=', 'paid')
+            ->update([
+                'base_salary' => $validated['base_salary'],
+            ]);
+
+        return redirect()->back()->with('success', 'Pengaturan shift, gaji, & tanggal bergabung/resign staff berhasil diperbarui.');
     }
 
     /**

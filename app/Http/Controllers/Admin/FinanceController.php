@@ -1089,29 +1089,38 @@ class FinanceController extends Controller
         $decryptedPath = $tmpDir.'/'.$uniqueId.'.xlsx';
         $uploadedPath = $file->getPathname();
 
-        // 1. Decrypt file via python script if encrypted or password provided
-        $pythonScript = base_path('app/Scripts/decrypt_statement.py');
-        $cmd = sprintf(
-            '/usr/local/bin/python3 %s %s %s %s 2>&1',
-            escapeshellarg($pythonScript),
-            escapeshellarg($uploadedPath),
-            escapeshellarg($decryptedPath),
-            escapeshellarg($password)
-        );
+        $targetFilePath = $uploadedPath;
 
-        $output = shell_exec($cmd);
-        $res = json_decode((string) $output, true);
+        // 1. Decrypt file via python script ONLY if password is provided
+        if (! empty($password)) {
+            $pythonScript = base_path('app/Scripts/decrypt_statement.py');
+            $pythonExec = trim((string) shell_exec('which python3')) ?: (file_exists('/usr/bin/python3') ? '/usr/bin/python3' : '/usr/local/bin/python3');
 
-        if (! is_array($res) || empty($res['success'])) {
-            $errorMsg = $res['error'] ?? 'Gagal memproses file e-Statement.';
-            if (! empty($res['requires_password'])) {
-                return redirect()->back()->withErrors(['file_password' => $errorMsg])->withInput();
+            $cmd = sprintf(
+                '%s %s %s %s 2>&1',
+                escapeshellarg($pythonExec),
+                escapeshellarg($pythonScript),
+                escapeshellarg($uploadedPath),
+                escapeshellarg($decryptedPath),
+                escapeshellarg($password)
+            );
+
+            $output = shell_exec($cmd);
+            $res = json_decode((string) $output, true);
+
+            if (! is_array($res) || empty($res['success'])) {
+                $errorMsg = $res['error'] ?? 'Gagal mendekripsi file e-Statement (Password salah atau file tidak valid).';
+                if (! empty($res['requires_password'])) {
+                    return redirect()->back()->withErrors(['file_password' => $errorMsg])->withInput();
+                }
+
+                return redirect()->back()->withErrors(['statement_file' => $errorMsg])->withInput();
             }
 
-            return redirect()->back()->withErrors(['statement_file' => $errorMsg])->withInput();
+            if (file_exists($decryptedPath)) {
+                $targetFilePath = $decryptedPath;
+            }
         }
-
-        $targetFilePath = file_exists($decryptedPath) ? $decryptedPath : $uploadedPath;
 
         try {
             $reader = IOFactory::createReaderForFile($targetFilePath);

@@ -38,6 +38,8 @@ class User extends Authenticatable
         'fingerprint_id',
         'shift_start_time',
         'shift_end_time',
+        'join_date',
+        'resign_date',
     ];
 
     /**
@@ -63,6 +65,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'base_salary' => 'float',
             'holiday_quota' => 'integer',
+            'join_date' => 'date',
+            'resign_date' => 'date',
         ];
     }
 

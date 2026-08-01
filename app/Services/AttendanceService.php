@@ -210,7 +210,7 @@ class AttendanceService
     /**
      * Perform HR attendance correction with audit log recording.
      */
-    public function correctAttendance(int $attendanceId, ?string $correctedCheckIn, ?string $correctedCheckOut, string $reason, ?string $notes, User $corrector): Attendance
+    public function correctAttendance(int $attendanceId, ?string $correctedCheckIn, ?string $correctedCheckOut, string $reason, ?string $notes, User $corrector, ?string $status = null): Attendance
     {
         $attendance = Attendance::findOrFail($attendanceId);
 
@@ -230,10 +230,17 @@ class AttendanceService
 
         // Update attendance
         $attendance = $this->calculateDailyAttendance($attendance->user, Carbon::parse($attendance->date), $correctedCheckIn, $correctedCheckOut);
-        $attendance->update([
+
+        $updateData = [
             'is_corrected' => true,
             'notes' => $notes ? ($attendance->notes ? $attendance->notes." | Koreksi: {$notes}" : "Koreksi: {$notes}") : $attendance->notes,
-        ]);
+        ];
+
+        if ($status && in_array($status, ['present', 'sick', 'permission', 'absent', 'holiday', 'off', 'standby'])) {
+            $updateData['status'] = $status;
+        }
+
+        $attendance->update($updateData);
 
         return $attendance;
     }
@@ -243,22 +250,67 @@ class AttendanceService
      */
     public function getMonthlyAttendanceSummary(int $userId, int $month, int $year): array
     {
+        $user = User::find($userId);
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
+        $daysInMonth = $endDate->day;
+
+        $userJoinDate = $user?->join_date ? Carbon::parse($user->join_date) : null;
+        $userResignDate = $user?->resign_date ? Carbon::parse($user->resign_date) : null;
 
         $records = Attendance::where('user_id', $userId)
             ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->get();
+            ->get()
+            ->keyBy(fn ($item) => Carbon::parse($item->date)->format('Y-m-d'));
 
-        $presentDays = $records->whereIn('status', ['present', 'standby'])->count();
-        $absentDays = $records->where('status', 'absent')->count();
-        $sickDays = $records->where('status', 'sick')->count();
-        $permissionDays = $records->where('status', 'permission')->count();
-        $holidayDays = $records->where('status', 'holiday')->count();
-        $standbyNights = $records->where('status', 'standby')->count();
+        $presentDays = 0;
+        $absentDays = 0;
+        $sickDays = 0;
+        $permissionDays = 0;
+        $holidayDays = 0;
+        $standbyNights = 0;
+        $totalLateMinutes = 0;
+        $totalOvertimeMinutes = 0;
 
-        $totalLateMinutes = $records->sum('late_minutes');
-        $totalOvertimeMinutes = $records->sum('overtime_minutes');
+        for ($d = 1; $d <= $daysInMonth; $d++) {
+            $dateCarbon = Carbon::create($year, $month, $d);
+            $dateStr = $dateCarbon->toDateString();
+
+            if ($userJoinDate && $userJoinDate->between($startDate, $endDate) && $dateCarbon->lt($userJoinDate->startOfDay())) {
+                continue;
+            }
+            if ($userResignDate && $userResignDate->between($startDate, $endDate) && $dateCarbon->gt($userResignDate->endOfDay())) {
+                continue;
+            }
+
+            $rec = $records->get($dateStr);
+
+            if ($rec) {
+                if (in_array($rec->status, ['present', 'standby'])) {
+                    $presentDays++;
+                    if ($rec->status === 'standby') {
+                        $standbyNights++;
+                    }
+                } elseif ($rec->status === 'absent') {
+                    $absentDays++;
+                } elseif ($rec->status === 'sick') {
+                    $sickDays++;
+                } elseif ($rec->status === 'permission') {
+                    $permissionDays++;
+                } elseif (in_array($rec->status, ['holiday', 'off'])) {
+                    $holidayDays++;
+                }
+
+                $totalLateMinutes += $rec->late_minutes;
+                $totalOvertimeMinutes += $rec->overtime_minutes;
+            } else {
+                if ($dateCarbon->isSunday()) {
+                    $holidayDays++;
+                } else {
+                    $absentDays++;
+                }
+            }
+        }
 
         $lateHours = round($totalLateMinutes / 60, 2);
         $overtimeHours = round($totalOvertimeMinutes / 60, 2);
@@ -274,7 +326,7 @@ class AttendanceService
             'late_days' => $lateDays,
             'late_hours' => $lateHours,
             'overtime_hours' => $overtimeHours,
-            'records' => $records,
+            'records' => $records->values(),
         ];
     }
 }

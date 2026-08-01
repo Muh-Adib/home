@@ -23,6 +23,7 @@ class PayrollRefactoringTest extends TestCase
         $employee = User::factory()->create([
             'role' => 'front_desk',
             'base_salary' => 3000000,
+            'join_date' => Carbon::create(2026, 7, 13),
             'created_at' => Carbon::create(2026, 7, 13),
         ]);
 
@@ -91,8 +92,8 @@ class PayrollRefactoringTest extends TestCase
 
     public function test_payroll_regenerate_creates_new_version_and_archives_previous(): void
     {
-        $superAdmin = User::factory()->create(['role' => 'super_admin']);
-        $employee = User::factory()->create(['role' => 'front_desk', 'base_salary' => 3000000]);
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'created_at' => '2026-07-01']);
+        $employee = User::factory()->create(['role' => 'front_desk', 'base_salary' => 3000000, 'created_at' => '2026-07-01']);
 
         $service = app(PayrollCalculationService::class);
         $payrollsData = $service->calculateDynamicPayroll(7, 2026);
@@ -135,8 +136,8 @@ class PayrollRefactoringTest extends TestCase
 
     public function test_payroll_approval_and_payout_creates_wallet_transaction(): void
     {
-        $superAdmin = User::factory()->create(['role' => 'super_admin']);
-        $employee = User::factory()->create(['role' => 'front_desk', 'base_salary' => 3000000]);
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'created_at' => '2026-07-01']);
+        $employee = User::factory()->create(['role' => 'front_desk', 'base_salary' => 3000000, 'created_at' => '2026-07-01']);
 
         $wallet = Wallet::create([
             'name' => 'Rekening Kas Utama',
@@ -177,8 +178,8 @@ class PayrollRefactoringTest extends TestCase
 
     public function test_custom_salary_allowance_and_deduction_in_payroll(): void
     {
-        $superAdmin = User::factory()->create(['role' => 'super_admin']);
-        $employee = User::factory()->create(['role' => 'front_desk', 'base_salary' => 3000000]);
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'created_at' => '2026-07-01']);
+        $employee = User::factory()->create(['role' => 'front_desk', 'base_salary' => 3000000, 'created_at' => '2026-07-01']);
 
         $service = app(PayrollCalculationService::class);
         $payrollsData = $service->calculateDynamicPayroll(7, 2026);

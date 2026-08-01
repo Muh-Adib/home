@@ -178,6 +178,11 @@ class Property extends Model
         return $this->hasMany(PropertyExpense::class);
     }
 
+    public function housekeepingAllocations(): HasMany
+    {
+        return $this->hasMany(PropertyHousekeepingAllocation::class);
+    }
+
     public function reports(): HasMany
     {
         return $this->hasMany(FinancialReport::class);

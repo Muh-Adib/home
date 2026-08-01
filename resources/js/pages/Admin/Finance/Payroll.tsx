@@ -87,6 +87,9 @@ interface PayrollStaffRow {
     first_nights_count?: number;
     next_nights_pool_count?: number;
     frontdesk_count?: number;
+    join_date?: string | null;
+    resign_date?: string | null;
+    holiday_quota?: number;
 }
 
 interface DailyShiftItem {
@@ -126,6 +129,7 @@ interface PayrollProps {
         permission_deduction_rate: number;
         follow_up_rate?: number;
         creation_rate?: number;
+        proration_standard_days?: number;
     };
 }
 
@@ -150,6 +154,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
     const [permissionDeductionRate, setPermissionDeductionRate] = useState(filters.permission_deduction_rate || 75000);
     const [followUpRate, setFollowUpRate] = useState(filters.follow_up_rate || 1000);
     const [creationRate, setCreationRate] = useState(filters.creation_rate || 1000);
+    const [prorationStandardDays, setProrationStandardDays] = useState(filters.proration_standard_days || 26);
 
     const [isParsingAttendance, setIsParsingAttendance] = useState(false);
     const [selectedWalletId, setSelectedWalletId] = useState<string>('');
@@ -166,6 +171,9 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
     const [staffFingerprintId, setStaffFingerprintId] = useState('');
     const [staffShiftStart, setStaffShiftStart] = useState('08:00');
     const [staffShiftEnd, setStaffShiftEnd] = useState('16:00');
+    const [staffJoinDate, setStaffJoinDate] = useState('');
+    const [staffResignDate, setStaffResignDate] = useState('');
+    const [staffHolidayQuota, setStaffHolidayQuota] = useState(4);
     const [isUpdatingUserSettings, setIsUpdatingUserSettings] = useState(false);
 
     // Modal Penyesuaian Gaji Khusus (Penambahan & Pengurangan Manual)
@@ -278,6 +286,9 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
         setStaffFingerprintId(row.fingerprint_id || '');
         setStaffShiftStart(row.shift_start_time || '08:00');
         setStaffShiftEnd(row.shift_end_time || '16:00');
+        setStaffJoinDate(row.join_date ? row.join_date.substring(0, 10) : '');
+        setStaffResignDate(row.resign_date ? row.resign_date.substring(0, 10) : '');
+        setStaffHolidayQuota(row.holiday_quota || 4);
         setIsUserSettingsModalOpen(true);
     };
 
@@ -362,10 +373,13 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                 fingerprint_id: staffFingerprintId || null,
                 shift_start_time: staffShiftStart,
                 shift_end_time: staffShiftEnd,
+                join_date: staffJoinDate || null,
+                resign_date: staffResignDate || null,
+                holiday_quota: staffHolidayQuota,
             },
             {
                 onSuccess: () => {
-                    toast.success(`Pengaturan gaji pokok & shift untuk ${editingStaff.name} berhasil diperbarui.`);
+                    toast.success(`Pengaturan gaji, shift, & tanggal bergabung/resign untuk ${editingStaff.name} berhasil diperbarui.`);
                     setIsUserSettingsModalOpen(false);
                     setIsUpdatingUserSettings(false);
                     router.reload();
@@ -428,6 +442,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                 permission_deduction_rate: permissionDeductionRate,
                 follow_up_rate: followUpRate,
                 creation_rate: creationRate,
+                proration_standard_days: prorationStandardDays,
             },
             {
                 onSuccess: () => {
@@ -1180,6 +1195,10 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                                 <Label className="text-[11px] font-semibold text-slate-600">Potongan Izin Karyawan (per Hari)</Label>
                                 <Input type="number" value={permissionDeductionRate} onChange={(e) => setPermissionDeductionRate(Number(e.target.value) || 0)} className="bg-white font-bold" />
                             </div>
+                            <div className="space-y-1 pt-1 border-t border-red-200">
+                                <Label className="text-[11px] font-semibold text-slate-700">Standar Hari Kerja Prorasi (Hari/Bulan)</Label>
+                                <Input type="number" value={prorationStandardDays} onChange={(e) => setProrationStandardDays(Number(e.target.value) || 26)} className="bg-white font-bold" placeholder="Default 26 hari" />
+                            </div>
                         </div>
 
                         {/* Group Insentif & Bonus FO */}
@@ -1332,14 +1351,25 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                             <p className="text-[10px] text-slate-400">Gaji ini akan dihitung secara proporsional (prorated) jika staff masuk pertengahan bulan.</p>
                         </div>
 
-                        <div className="space-y-1">
-                            <Label className="font-bold text-xs">ID Mesin Fingerprint (Nomor Absensi)</Label>
-                            <Input 
-                                type="text" 
-                                value={staffFingerprintId} 
-                                onChange={(e) => setStaffFingerprintId(e.target.value)} 
-                                placeholder="Contoh: 101"
-                            />
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="font-bold text-xs">ID Mesin Fingerprint</Label>
+                                <Input 
+                                    type="text" 
+                                    value={staffFingerprintId} 
+                                    onChange={(e) => setStaffFingerprintId(e.target.value)} 
+                                    placeholder="Contoh: 101"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="font-bold text-xs">Jatah Libur / Off (Hari/Bulan)</Label>
+                                <Input 
+                                    type="number" 
+                                    value={staffHolidayQuota} 
+                                    onChange={(e) => setStaffHolidayQuota(Number(e.target.value) || 0)} 
+                                    placeholder="Default: 4 hari"
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -1360,6 +1390,61 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                                 />
                             </div>
                         </div>
+
+                        {/* Tanggal Resmi Bergabung & Resign untuk kontrol prorasi */}
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                            <div className="space-y-1">
+                                <Label className="font-bold text-xs">Tgl Resmi Bergabung (Join Date)</Label>
+                                <Input 
+                                    type="date" 
+                                    value={staffJoinDate} 
+                                    onChange={(e) => setStaffJoinDate(e.target.value)} 
+                                    className="text-xs font-mono"
+                                />
+                                <span className="block text-[9px] text-slate-400">Kosongkan jika karyawan lama</span>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="font-bold text-xs">Tgl Resmi Resign/Keluar (Resign Date)</Label>
+                                <Input 
+                                    type="date" 
+                                    value={staffResignDate} 
+                                    onChange={(e) => setStaffResignDate(e.target.value)} 
+                                    className="text-xs font-mono"
+                                />
+                                <span className="block text-[9px] text-slate-400">Kosongkan jika masih aktif</span>
+                            </div>
+                        </div>
+
+                        {/* Box Simulasi Live Hitungan Gaji Pokok & Status Prorasi */}
+                        {editingStaff && (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                                <div className="font-bold text-slate-800 flex items-center justify-between border-b pb-1">
+                                    <span>Simulasi Hitungan Gaji Pokok ({editingStaff.name})</span>
+                                    {editingStaff.prorated ? (
+                                        <Badge className="bg-amber-500 text-white font-bold text-[10px]">Prorated ({editingStaff.active_employment_days}/26 hr)</Badge>
+                                    ) : (
+                                        <Badge className="bg-emerald-600 text-white font-bold text-[10px]">Penuh 100% (26/26 hr)</Badge>
+                                    )}
+                                </div>
+                                <div className="space-y-1 text-slate-600">
+                                    <div className="flex justify-between">
+                                        <span>Gaji Standar 1 Bulan:</span>
+                                        <span className="font-mono font-bold">{formatCurrency(staffBaseSalary)}</span>
+                                    </div>
+                                    {editingStaff.prorated && (
+                                        <div className="flex justify-between text-amber-700 font-bold">
+                                            <span>Gaji Pokok Diterima (Prorated):</span>
+                                            <span className="font-mono font-bold">{formatCurrency(Math.round(staffBaseSalary * ((editingStaff.active_employment_days || 26) / 26)))}</span>
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-slate-500 italic pt-1 border-t">
+                                        {editingStaff.prorated 
+                                            ? `Karyawan terdaftar/resign di pertengahan bulan, sehingga dihitung ${editingStaff.active_employment_days} hari kerja dari standar 26 hari.` 
+                                            : `Karyawan bekerja sebulan penuh, tidak ada potongan prorasi.`}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>
@@ -1427,124 +1512,142 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                             <p className="text-[10px] text-slate-500">Periode: {monthsName[selectedMonth - 1]} {selectedYear} | Versi: {selectedUserForPrint?.version || 1}</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>Nama: <span className="font-bold">{selectedUserForPrint?.name}</span></div>
-                            <div>Role: <span className="font-bold uppercase">{selectedUserForPrint?.role?.replace('_', ' ')}</span></div>
-                        </div>
+                        {selectedUserForPrint && (
+                        <div className="py-2 space-y-3 text-xs">
+                            <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border">
+                                <div>
+                                    <span className="text-[10px] text-slate-400 block font-semibold">NAMA KARYAWAN</span>
+                                    <span className="font-bold text-slate-800">{selectedUserForPrint.name}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-slate-400 block font-semibold">JABATAN / ROLE</span>
+                                    <span className="font-bold text-indigo-700 capitalize">{selectedUserForPrint.role.replace('_', ' ')}</span>
+                                </div>
+                            </div>
 
-                        {/* Rincian Penerimaan (Allowances) */}
-                        <div className="border-t border-b py-2 space-y-1">
-                            <div className="font-bold text-slate-700 border-b pb-1 mb-1">PENERIMAAN (ALLOWANCES)</div>
-                            <div className="flex justify-between"><span>Gaji Pokok {selectedUserForPrint?.prorated ? '(Prorated)' : ''}</span><span>{formatCurrency(selectedUserForPrint?.base_salary || 0)}</span></div>
-                            
-                            {selectedUserForPrint?.performance_bonus > 0 && (
-                                <div className="flex justify-between text-purple-700">
-                                    <span>Bonus Front Office (Follow-up)</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.performance_bonus)}</span>
+                            {/* Rincian Penerimaan (Allowances) */}
+                            <div className="border-t border-b py-2 space-y-1">
+                                <div className="font-bold text-slate-700 border-b pb-1 mb-1">PENERIMAAN (ALLOWANCES)</div>
+                                <div className="flex justify-between">
+                                    <span>Gaji Pokok Sebulan</span>
+                                    <span>{formatCurrency(selectedUserForPrint.original_base_salary || selectedUserForPrint.base_salary || 0)}</span>
                                 </div>
-                            )}
-                            {selectedUserForPrint?.frontdesk_first_night_bonus > 0 && (
-                                <div className="flex justify-between text-blue-700">
-                                    <span>Bonus Front Office (Input Data)</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.frontdesk_first_night_bonus)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.frontdesk_next_nights_bonus_share > 0 && (
-                                <div className="flex justify-between text-indigo-700">
-                                    <span>Bonus Front Office (Pool Extra Nights)</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.frontdesk_next_nights_bonus_share)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.housekeeping_bonus > 0 && (
-                                <div className="flex justify-between text-emerald-700">
-                                    <span>Bonus Housekeeping (Poin Sharing Pool)</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.housekeeping_bonus)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.standby_bonus > 0 && (
-                                <div className="flex justify-between text-amber-700">
-                                    <span>Insentif Shift Standby ({selectedUserForPrint.standby_nights} malam)</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.standby_bonus)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.overtime_bonus > 0 && (
-                                <div className="flex justify-between text-emerald-700">
-                                    <span>Insentif Lembur ({selectedUserForPrint.overtime_hours} jam)</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.overtime_bonus)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.custom_allowance > 0 && (
-                                <div className="flex justify-between text-indigo-700 font-bold">
-                                    <span>Bonus Khusus Manual ({selectedUserForPrint.custom_allowance_reason || 'Bonus Khusus'})</span>
-                                    <span>+{formatCurrency(selectedUserForPrint.custom_allowance)}</span>
-                                </div>
-                            )}
+                                {selectedUserForPrint.prorated && (
+                                    <div className="flex justify-between text-amber-700 font-bold pl-2 text-[11px]">
+                                        <span>↳ Disesuaikan (Prorated {selectedUserForPrint.active_employment_days}/26 hari kerja)</span>
+                                        <span>{formatCurrency(selectedUserForPrint.base_salary)}</span>
+                                    </div>
+                                )}
+                                
+                                {(selectedUserForPrint.performance_bonus || 0) > 0 && (
+                                    <div className="flex justify-between text-purple-700">
+                                        <span>Bonus Front Office (Follow-up)</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.performance_bonus)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.frontdesk_first_night_bonus || 0) > 0 && (
+                                    <div className="flex justify-between text-blue-700">
+                                        <span>Bonus Front Office (Input Data)</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.frontdesk_first_night_bonus)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.frontdesk_next_nights_bonus_share || 0) > 0 && (
+                                    <div className="flex justify-between text-indigo-700">
+                                        <span>Bonus Front Office (Pool Extra Nights)</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.frontdesk_next_nights_bonus_share)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.housekeeping_bonus || 0) > 0 && (
+                                    <div className="flex justify-between text-emerald-700">
+                                        <span>Bonus Housekeeping (Poin Sharing Pool)</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.housekeeping_bonus)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.standby_bonus || 0) > 0 && (
+                                    <div className="flex justify-between text-amber-700">
+                                        <span>Insentif Shift Standby ({selectedUserForPrint.standby_nights || 0} malam)</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.standby_bonus)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.overtime_bonus || 0) > 0 && (
+                                    <div className="flex justify-between text-emerald-700">
+                                        <span>Insentif Lembur ({selectedUserForPrint.overtime_hours || 0} jam)</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.overtime_bonus)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.custom_allowance || 0) > 0 && (
+                                    <div className="flex justify-between text-indigo-700 font-bold">
+                                        <span>Bonus Khusus Manual ({selectedUserForPrint.custom_allowance_reason || 'Bonus Khusus'})</span>
+                                        <span>+{formatCurrency(selectedUserForPrint.custom_allowance)}</span>
+                                    </div>
+                                )}
 
-                            <div className="flex justify-between font-bold border-t pt-1 text-slate-800">
-                                <span>TOTAL PENERIMAAN</span>
-                                <span>{formatCurrency(payslipTotals.totalAllowances)}</span>
+                                <div className="flex justify-between font-bold border-t pt-1 text-slate-800">
+                                    <span>TOTAL PENERIMAAN</span>
+                                    <span>{formatCurrency(payslipTotals.totalAllowances)}</span>
+                                </div>
+                            </div>
+
+                            {/* Rincian Potongan (Deductions) */}
+                            <div className="border-b pb-2 space-y-1">
+                                <div className="font-bold text-slate-700 border-b pb-1 mb-1">POTONGAN (DEDUCTIONS)</div>
+                                {(selectedUserForPrint.late_deduction || 0) > 0 && (
+                                    <div className="flex justify-between text-red-600">
+                                        <span>Denda Keterlambatan ({selectedUserForPrint.late_hours || 0} jam)</span>
+                                        <span>-{formatCurrency(selectedUserForPrint.late_deduction)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.absent_deduction || 0) > 0 && (
+                                    <div className="flex justify-between text-red-600">
+                                        <span>Potongan Mangkir/Absent ({selectedUserForPrint.absent_days || 0} hari)</span>
+                                        <span>-{formatCurrency(selectedUserForPrint.absent_deduction)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.sick_deduction || 0) > 0 && (
+                                    <div className="flex justify-between text-red-600">
+                                        <span>Potongan Sakit Tanpa Surat ({selectedUserForPrint.sick_days || 0} hari)</span>
+                                        <span>-{formatCurrency(selectedUserForPrint.sick_deduction)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.permission_deduction || 0) > 0 && (
+                                    <div className="flex justify-between text-red-600">
+                                        <span>Potongan Izin Karyawan ({selectedUserForPrint.permission_days || 0} hari)</span>
+                                        <span>-{formatCurrency(selectedUserForPrint.permission_deduction)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.loan_deduction || 0) > 0 && (
+                                    <div className="flex justify-between text-red-600">
+                                        <span>Potongan Pinjaman (Casbon)</span>
+                                        <span>-{formatCurrency(selectedUserForPrint.loan_deduction)}</span>
+                                    </div>
+                                )}
+                                {(selectedUserForPrint.custom_deduction || 0) > 0 && (
+                                    <div className="flex justify-between text-red-700 font-bold">
+                                        <span>Potongan Khusus Manual ({selectedUserForPrint.custom_deduction_reason || 'Potongan Khusus'})</span>
+                                        <span>-{formatCurrency(selectedUserForPrint.custom_deduction)}</span>
+                                    </div>
+                                )}
+
+                                {!selectedUserForPrint.late_deduction && !selectedUserForPrint.absent_deduction && !selectedUserForPrint.sick_deduction && !selectedUserForPrint.permission_deduction && !selectedUserForPrint.loan_deduction && !selectedUserForPrint.custom_deduction && (
+                                    <div className="flex justify-between text-slate-400 italic">
+                                        <span>Tidak ada potongan</span>
+                                        <span>Rp 0</span>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between font-bold border-t pt-1 text-slate-800">
+                                    <span>TOTAL POTONGAN</span>
+                                    <span>{formatCurrency(payslipTotals.totalDeductions)}</span>
+                                </div>
+                            </div>
+
+                            {/* Total Net Salary */}
+                            <div className="flex justify-between items-center text-sm font-bold pt-2 border-t-2 border-slate-900">
+                                <span>TOTAL GAJI BERSIH (NET SALARY)</span>
+                                <span className="text-emerald-700 text-base">{formatCurrency(payslipTotals.netSalary)}</span>
                             </div>
                         </div>
-
-                        {/* Rincian Potongan (Deductions) */}
-                        <div className="border-b pb-2 space-y-1">
-                            <div className="font-bold text-slate-700 border-b pb-1 mb-1">POTONGAN (DEDUCTIONS)</div>
-                            {selectedUserForPrint?.late_deduction > 0 && (
-                                <div className="flex justify-between text-red-600">
-                                    <span>Denda Keterlambatan ({selectedUserForPrint.late_hours} jam)</span>
-                                    <span>-{formatCurrency(selectedUserForPrint.late_deduction)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.absent_deduction > 0 && (
-                                <div className="flex justify-between text-red-600">
-                                    <span>Potongan Mangkir/Absent ({selectedUserForPrint.absent_days} hari)</span>
-                                    <span>-{formatCurrency(selectedUserForPrint.absent_deduction)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.sick_deduction > 0 && (
-                                <div className="flex justify-between text-red-600">
-                                    <span>Potongan Sakit Tanpa Surat ({selectedUserForPrint.sick_days} hari)</span>
-                                    <span>-{formatCurrency(selectedUserForPrint.sick_deduction)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.permission_deduction > 0 && (
-                                <div className="flex justify-between text-red-600">
-                                    <span>Potongan Izin Karyawan ({selectedUserForPrint.permission_days} hari)</span>
-                                    <span>-{formatCurrency(selectedUserForPrint.permission_deduction)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.loan_deduction > 0 && (
-                                <div className="flex justify-between text-red-600">
-                                    <span>Potongan Pinjaman (Casbon)</span>
-                                    <span>-{formatCurrency(selectedUserForPrint.loan_deduction)}</span>
-                                </div>
-                            )}
-                            {selectedUserForPrint?.custom_deduction > 0 && (
-                                <div className="flex justify-between text-red-700 font-bold">
-                                    <span>Potongan Khusus Manual ({selectedUserForPrint.custom_deduction_reason || 'Potongan Khusus'})</span>
-                                    <span>-{formatCurrency(selectedUserForPrint.custom_deduction)}</span>
-                                </div>
-                            )}
-
-                            {selectedUserForPrint?.late_deduction === 0 && selectedUserForPrint?.absent_deduction === 0 && selectedUserForPrint?.sick_deduction === 0 && selectedUserForPrint?.permission_deduction === 0 && selectedUserForPrint?.loan_deduction === 0 && selectedUserForPrint?.custom_deduction === 0 && (
-                                <div className="flex justify-between text-slate-400 italic">
-                                    <span>Tidak ada potongan</span>
-                                    <span>Rp 0</span>
-                                </div>
-                            )}
-
-                            <div className="flex justify-between font-bold border-t pt-1 text-slate-800">
-                                <span>TOTAL POTONGAN</span>
-                                <span>{formatCurrency(payslipTotals.totalDeductions)}</span>
-                            </div>
-                        </div>
-
-                        {/* Total Net Salary */}
-                        <div className="flex justify-between items-center text-sm font-bold pt-2 border-t-2 border-slate-900">
-                            <span>TOTAL GAJI BERSIH (NET SALARY)</span>
-                            <span className="text-emerald-700 text-base">{formatCurrency(payslipTotals.netSalary)}</span>
-                        </div>
-                    </div>
+                    )}    </div>
 
                     <DialogFooter>
                         <Button variant="outline" size="sm" onClick={() => setIsPrintModalOpen(false)}>Tutup</Button>

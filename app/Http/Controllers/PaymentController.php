@@ -240,9 +240,12 @@ class PaymentController extends Controller
         $request->validate([
             'payment_method_id' => 'required|exists:payment_methods,id',
             'amount' => 'required|integer|min:1|max:'.$pendingAmount,
-            'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
             'payment_notes' => 'nullable|string|max:500',
             'unique_code' => 'nullable|integer|min:0|max:999',
+        ], [
+            'proof_of_payment.max' => 'Ukuran file bukti pembayaran terlalu besar (Maksimum 10MB).',
+            'proof_of_payment.mimes' => 'Format file bukti pembayaran harus berupa foto (JPG, PNG, WEBP, HEIC) atau PDF.',
         ]);
 
         if ($pendingAmount <= 0) {
@@ -569,9 +572,12 @@ class PaymentController extends Controller
         $request->validate([
             'payment_method_id' => 'required|exists:payment_methods,id',
             'amount' => 'required|numeric|min:1|max:'.$booking->total_amount,
-            'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
             'payment_notes' => 'nullable|string|max:500',
             'unique_code' => 'nullable|integer',
+        ], [
+            'proof_of_payment.max' => 'Ukuran file bukti pembayaran terlalu besar (Maksimum 10MB).',
+            'proof_of_payment.mimes' => 'Format file bukti pembayaran harus berupa foto (JPG, PNG, WEBP, HEIC) atau PDF.',
         ]);
 
         try {
