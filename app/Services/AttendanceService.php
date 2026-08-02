@@ -25,9 +25,21 @@ class AttendanceService
             $name = trim($row['name'] ?? '');
             $fingerprintId = trim((string) ($row['fingerprint_id'] ?? ''));
 
-            $matchedUser = User::where('fingerprint_id', $fingerprintId)
-                ->orWhere('name', 'like', "%{$name}%")
-                ->first();
+            $matchedUser = null;
+            if ($fingerprintId !== '') {
+                $matchedUser = User::where('fingerprint_id', $fingerprintId)->first();
+                if (! $matchedUser && is_numeric($fingerprintId)) {
+                    $cleanFpId = (string) (int) $fingerprintId;
+                    $matchedUser = User::where('fingerprint_id', $cleanFpId)->first();
+                }
+            }
+
+            if (! $matchedUser && $name !== '') {
+                $matchedUser = User::where('name', $name)->first();
+                if (! $matchedUser) {
+                    $matchedUser = User::where('name', 'like', "%{$name}%")->first();
+                }
+            }
 
             if ($matchedUser) {
                 $matchedUserCount++;
@@ -46,19 +58,35 @@ class AttendanceService
                         continue;
                     }
 
-                    $checkIn = ($log['check_in'] !== '—' && $log['check_in'] !== '') ? $log['check_in'] : null;
-                    $checkOut = ($log['check_out'] !== '—' && $log['check_out'] !== '') ? $log['check_out'] : null;
+                    $checkIn = ($log['check_in'] !== '—' && $log['check_in'] !== '' && $log['check_in'] !== null) ? $log['check_in'] : null;
+                    $checkOut = ($log['check_out'] !== '—' && $log['check_out'] !== '' && $log['check_out'] !== null) ? $log['check_out'] : null;
 
-                    // Store raw attendance
-                    RawAttendance::create([
-                        'user_id' => $matchedUser?->id,
-                        'fingerprint_id' => $fingerprintId,
-                        'date' => $date->toDateString(),
-                        'check_in' => $checkIn,
-                        'check_out' => $checkOut,
-                        'raw_payload' => $log,
-                        'imported_by' => $importer?->id,
-                    ]);
+                    // Update or create raw attendance record
+                    if ($matchedUser) {
+                        RawAttendance::updateOrCreate(
+                            [
+                                'user_id' => $matchedUser->id,
+                                'date' => $date->toDateString(),
+                            ],
+                            [
+                                'fingerprint_id' => $fingerprintId,
+                                'check_in' => $checkIn,
+                                'check_out' => $checkOut,
+                                'raw_payload' => $log,
+                                'imported_by' => $importer?->id,
+                            ]
+                        );
+                    } else {
+                        RawAttendance::create([
+                            'user_id' => null,
+                            'fingerprint_id' => $fingerprintId,
+                            'date' => $date->toDateString(),
+                            'check_in' => $checkIn,
+                            'check_out' => $checkOut,
+                            'raw_payload' => $log,
+                            'imported_by' => $importer?->id,
+                        ]);
+                    }
 
                     // Generate calculated attendance if matched
                     if ($matchedUser) {
@@ -77,10 +105,19 @@ class AttendanceService
 
     /**
      * Calculate and store daily attendance for a single user on a specific date.
+     * Preserves manual HR corrections unless $forceCorrection is true.
      */
-    public function calculateDailyAttendance(User $user, Carbon $date, ?string $checkIn, ?string $checkOut): Attendance
+    public function calculateDailyAttendance(User $user, Carbon $date, ?string $checkIn, ?string $checkOut, bool $forceCorrection = false): Attendance
     {
         $dateStr = $date->toDateString();
+
+        // Check if attendance already exists
+        $existing = Attendance::where('user_id', $user->id)->where('date', $dateStr)->first();
+
+        // If manually edited/corrected by HR and not forced, preserve HR correction!
+        if ($existing && $existing->is_corrected && ! $forceCorrection) {
+            return $existing;
+        }
 
         // 1. Fetch custom shift or user default
         $customShift = StaffShift::where('user_id', $user->id)->where('date', $dateStr)->first();

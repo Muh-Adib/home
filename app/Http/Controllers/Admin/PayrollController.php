@@ -245,6 +245,9 @@ class PayrollController extends Controller
     /**
      * Upload & Parse Fingerprint Attendance file (XLS/XLSX/CSV) and store in database.
      */
+    /**
+     * Upload & Parse Fingerprint Attendance file (XLS/XLSX/CSV) and store in database.
+     */
     public function uploadAttendance(Request $request): JsonResponse
     {
         $request->validate([
@@ -266,59 +269,133 @@ class PayrollController extends Controller
             try {
                 $reader = IOFactory::createReaderForFile($filePath);
                 $spreadsheet = $reader->load($filePath);
+                $daysInMonth = Carbon::create($year, $month, 1)->endOfMonth()->day;
 
-                for ($sheetIdx = 2; $sheetIdx < $spreadsheet->getSheetCount(); $sheetIdx++) {
+                // Loop through ALL sheets in the workbook (starting from sheet 0)
+                for ($sheetIdx = 0; $sheetIdx < $spreadsheet->getSheetCount(); $sheetIdx++) {
                     $sheet = $spreadsheet->getSheet($sheetIdx);
                     $highestRow = $sheet->getHighestRow();
                     $highestColumn = $sheet->getHighestColumn();
                     $highestColIdx = Coordinate::columnIndexFromString($highestColumn);
 
-                    for ($colStart = 1; $colStart < $highestColIdx; $colStart += 15) {
-                        $name = $sheet->getCell([$colStart + 9, 4])->getValue();
-                        $fingerprintId = $sheet->getCell([$colStart + 9, 5])->getValue();
+                    $foundInSheet = false;
 
-                        if (! $name && ! $fingerprintId) {
-                            continue;
+                    // --- FORMAT 1: Solution / BioFinger / ZKTeco Standard Report (User ID in row, logs in r+2) ---
+                    for ($r = 1; $r <= $highestRow; $r++) {
+                        for ($c = 1; $c <= min(15, $highestColIdx); $c++) {
+                            $cellVal = trim((string) $sheet->getCell([$c, $r])->getValue());
+
+                            if (preg_match('/(User\s*ID|ID\s*:?|No\.\s*ID|PIN\s*:?)/i', $cellVal)) {
+                                // Extract Fingerprint ID
+                                $idVal = '';
+                                if (preg_match('/(?:User\s*ID|ID|PIN)\s*:?\s*(\d+)/i', $cellVal, $m)) {
+                                    $idVal = $m[1];
+                                } else {
+                                    $nextVal = trim((string) $sheet->getCell([$c + 1, $r])->getValue());
+                                    if (! empty($nextVal)) {
+                                        $idVal = $nextVal;
+                                    }
+                                }
+
+                                // Extract Name
+                                $nameVal = '';
+                                for ($nc = $c + 2; $nc <= min($c + 15, $highestColIdx); $nc++) {
+                                    $nVal = trim((string) $sheet->getCell([$nc, $r])->getValue());
+                                    if (! empty($nVal) && ! preg_match('/^(Name|Nama|User ID|ID|No|PIN)/i', $nVal) && ! is_numeric($nVal)) {
+                                        $nameVal = $nVal;
+                                        break;
+                                    }
+                                }
+
+                                if ($idVal === '' && $nameVal === '') {
+                                    continue;
+                                }
+
+                                $foundInSheet = true;
+                                $logRow = $r + 2;
+                                if ($logRow > $highestRow) {
+                                    $logRow = $r + 1;
+                                }
+
+                                $empLogs = [];
+                                for ($day = 1; $day <= $daysInMonth; $day++) {
+                                    $col = $day + 1;
+                                    if ($col > $highestColIdx) {
+                                        break;
+                                    }
+
+                                    $rawVal = trim((string) $sheet->getCell([$col, $logRow])->getValue());
+                                    if ($rawVal !== '') {
+                                        [$checkIn, $checkOut] = $this->parseTimes($rawVal);
+                                        $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                                        $empLogs[] = [
+                                            'day' => $day,
+                                            'date' => $dateStr,
+                                            'check_in' => $checkIn ?: '—',
+                                            'check_out' => $checkOut ?: '—',
+                                            'raw' => $rawVal,
+                                        ];
+                                    }
+                                }
+
+                                $attendanceSummary[] = [
+                                    'fingerprint_id' => (string) $idVal,
+                                    'name' => $nameVal,
+                                    'days_logs' => $empLogs,
+                                ];
+                            }
                         }
+                    }
 
-                        $name = trim((string) $name);
-                        $fingerprintId = trim((string) $fingerprintId);
+                    // --- FORMAT 2: 15-Column Block Matrix Format ---
+                    if (! $foundInSheet) {
+                        for ($colStart = 1; $colStart < $highestColIdx; $colStart += 15) {
+                            $name = $sheet->getCell([$colStart + 9, 4])->getValue();
+                            $fingerprintId = $sheet->getCell([$colStart + 9, 5])->getValue();
 
-                        $daysLogs = [];
-
-                        for ($row = 13; $row <= 43; $row++) {
-                            $dayLabel = $sheet->getCell([$colStart, $row])->getValue();
-                            if (! $dayLabel) {
+                            if (! $name && ! $fingerprintId) {
                                 continue;
                             }
 
-                            $day = $row - 12;
-                            if ($day > Carbon::create($year, $month, 1)->endOfMonth()->day) {
-                                continue;
+                            $name = trim((string) $name);
+                            $fingerprintId = trim((string) $fingerprintId);
+                            $daysLogs = [];
+
+                            for ($row = 13; $row <= 43; $row++) {
+                                $dayLabel = $sheet->getCell([$colStart, $row])->getValue();
+                                if (! $dayLabel) {
+                                    continue;
+                                }
+
+                                $day = $row - 12;
+                                if ($day > $daysInMonth) {
+                                    continue;
+                                }
+
+                                $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
+
+                                $inPagi = $sheet->getCell([$colStart + 1, $row])->getValue();
+                                $outPagi = $sheet->getCell([$colStart + 3, $row])->getValue();
+                                $inSiang = $sheet->getCell([$colStart + 6, $row])->getValue();
+                                $outSiang = $sheet->getCell([$colStart + 8, $row])->getValue();
+
+                                $checkIn = $inPagi ?: $inSiang;
+                                $checkOut = $outSiang ?: $outPagi;
+
+                                $daysLogs[] = [
+                                    'day' => $day,
+                                    'date' => $dateStr,
+                                    'check_in' => $checkIn ?: '—',
+                                    'check_out' => $checkOut ?: '—',
+                                ];
                             }
-                            $dateStr = Carbon::create($year, $month, $day)->toDateString();
 
-                            $inPagi = $sheet->getCell([$colStart + 1, $row])->getValue();
-                            $outPagi = $sheet->getCell([$colStart + 3, $row])->getValue();
-                            $inSiang = $sheet->getCell([$colStart + 6, $row])->getValue();
-                            $outSiang = $sheet->getCell([$colStart + 8, $row])->getValue();
-
-                            $checkIn = $inPagi ?: $inSiang;
-                            $checkOut = $outSiang ?: $outPagi;
-
-                            $daysLogs[] = [
-                                'day' => $day,
-                                'date' => $dateStr,
-                                'check_in' => $checkIn ?: '—',
-                                'check_out' => $checkOut ?: '—',
+                            $attendanceSummary[] = [
+                                'name' => $name,
+                                'fingerprint_id' => $fingerprintId,
+                                'days_logs' => $daysLogs,
                             ];
                         }
-
-                        $attendanceSummary[] = [
-                            'name' => $name,
-                            'fingerprint_id' => $fingerprintId,
-                            'days_logs' => $daysLogs,
-                        ];
                     }
                 }
             } catch (\Exception $e) {
@@ -328,7 +405,7 @@ class PayrollController extends Controller
                 ], 500);
             }
         } else {
-            // Simplified CSV fallback parsing
+            // CSV fallback parsing
             try {
                 if (($handle = fopen($filePath, 'r')) !== false) {
                     $header = fgetcsv($handle, 1000, ',');
@@ -360,10 +437,59 @@ class PayrollController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Berhasil mengimpor data absensi. {$importResult['total_imported_records']} catatan kehadiran dibuat.",
+            'message' => "Berhasil mengimpor data absensi. {$importResult['total_imported_records']} catatan kehadiran diproses.",
             'summary' => $attendanceSummary,
             'matched_users_count' => $importResult['matched_users_count'],
         ]);
+    }
+
+    /**
+     * Helper to parse timestamps from raw fingerprint cell value.
+     */
+    private function parseTimes(string $str): array
+    {
+        $str = str_replace(["\r\n", "\n", "\r", "\t"], ' ', $str);
+        preg_match_all('/\d{1,2}[:.]\d{2}/', $str, $matches);
+        $times = $matches[0] ?? [];
+
+        if (empty($times)) {
+            return [null, null];
+        }
+
+        $normalizedTimes = array_map(function ($t) {
+            $parts = preg_split('/[:.]/', $t);
+
+            return sprintf('%02d:%02d', (int) $parts[0], (int) $parts[1]);
+        }, $times);
+
+        if (count($normalizedTimes) === 1) {
+            $t = $normalizedTimes[0];
+            $h = (int) explode(':', $t)[0];
+
+            if ($h >= 14) {
+                return [null, $t];
+            }
+
+            return [$t, null];
+        }
+
+        $first = $normalizedTimes[0];
+        $last = end($normalizedTimes);
+
+        $fParts = explode(':', $first);
+        $lParts = explode(':', $last);
+        $fMin = (int) $fParts[0] * 60 + (int) $fParts[1];
+        $lMin = (int) $lParts[0] * 60 + (int) $lParts[1];
+
+        if (($lMin - $fMin) < 30) {
+            if ((int) $fParts[0] >= 14) {
+                return [null, $first];
+            }
+
+            return [$first, null];
+        }
+
+        return [$first, $last];
     }
 
     /**

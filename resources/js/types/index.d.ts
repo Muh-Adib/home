@@ -343,6 +343,7 @@ export interface Payment {
     gateway_transaction_id?: string;
     gateway_response?: any;
     unique_code?: number;
+    expected_amount?: number;
     created_at: string;
     updated_at: string;
     booking?: Booking;
