@@ -436,6 +436,10 @@ export default function ShowBooking({ booking, whatsappData, auth }: BookingShow
             toast.error("Jumlah pembayaran harus lebih dari 0");
             return;
         }
+        if (!proofOfPayment) {
+            toast.error("Upload gambar bukti transfer wajib diisi!");
+            return;
+        }
         setIsSubmittingPayment(true);
         try {
             const formData = new FormData();

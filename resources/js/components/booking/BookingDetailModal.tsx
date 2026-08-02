@@ -426,10 +426,36 @@ export default function BookingDetailModal({
         }
     };
 
+    const fallbackCopyText = (text: string, successMsg: string) => {
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            toast.success(successMsg);
+        } catch {
+            toast.error('Gagal menyalin teks. Silakan salin secara manual.');
+        }
+    };
+
+    const copyToClipboard = (text: string, successMsg: string) => {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text)
+                .then(() => toast.success(successMsg))
+                .catch(() => fallbackCopyText(text, successMsg));
+        } else {
+            fallbackCopyText(text, successMsg);
+        }
+    };
+
     const copyPaymentLink = () => {
-        const link = booking.payment_link || (booking.payment_token ? `${window.location.origin}/booking/${booking.booking_number}/payment/${booking.payment_token}` : `${window.location.origin}/booking/${booking.booking_number}/payment`);
-        navigator.clipboard.writeText(link);
-        toast.success('Link pembayaran disalin ke clipboard!');
+        const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
+        copyToClipboard(link, 'Link pembayaran disalin ke clipboard!');
     };
 
     const formatTimeHelper = (timeStr?: string) => {
@@ -455,20 +481,33 @@ export default function BookingDetailModal({
     };
 
     const getWhatsAppTemplateMessage = (templateKey: string): string => {
-        const link = booking.payment_link || (booking.payment_token ? `${window.location.origin}/booking/${booking.booking_number}/payment/${booking.payment_token}` : `${window.location.origin}/booking/${booking.booking_number}/payment`);
-        const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment${booking.payment_token ? `/${booking.payment_token}` : ''}`;
+        const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
         const guestsDetail = `${booking.guest_count} Orang${booking.guest_male || booking.guest_female || booking.guest_children
             ? ` (Pria: ${booking.guest_male || 0}, Wanita: ${booking.guest_female || 0}, Anak <10th: ${booking.guest_children || 0})`
             : ''
             }${booking.extra_bed_count ? ` + ${booking.extra_bed_count} Extra Bed` : ''}`;
 
+        // Check active pending payments for DP and Remaining phases to get exact nominal with unique code
+        const pendingDp = booking.payments?.find(
+            (p: any) => (p.payment_status === 'pending' || p.status === 'menunggu') && p.payment_type === 'dp'
+        );
+        const dpAmt = pendingDp
+            ? (pendingDp.expected_amount || (Number(pendingDp.amount) + Number(pendingDp.unique_code || 0)))
+            : (booking.dp_amount || booking.total_amount * 0.5);
+
+        const pendingRemaining = booking.payments?.find(
+            (p: any) => (p.payment_status === 'pending' || p.status === 'menunggu') && p.payment_type === 'remaining'
+        );
+        const remAmt = pendingRemaining
+            ? (pendingRemaining.expected_amount || (Number(pendingRemaining.amount) + Number(pendingRemaining.unique_code || 0)))
+            : remainingAmount;
+
         switch (templateKey) {
             case 'billing_dp':
-                const dpAmt = booking.dp_amount || booking.total_amount * 0.5;
                 return `Halo ${booking.guest_name},\n\nTerima kasih telah memesan di homsjogja.com untuk unit *${booking.property?.name}*.\n\n*Rincian Pemesanan:*\n- Tanggal Check-in: ${formatDateHelper(booking.check_in)}\n- Tanggal Check-out: ${formatDateHelper(booking.check_out)}\n- Durasi Menginap: ${nights} Malam\n- Jumlah Tamu: ${guestsDetail}\n\nSilakan selesaikan pembayaran DP Anda sebesar *${formatCurrency(dpAmt)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
 
             case 'billing_remaining':
-                return `Halo ${booking.guest_name},\n\nBerikut tagihan pelunasan untuk pemesanan unit *${booking.property?.name}*.\n\n*Rincian Pemesanan:*\n- Tanggal Check-in: ${formatDateHelper(booking.check_in)}\n- Tanggal Check-out: ${formatDateHelper(booking.check_out)}\n- Durasi Menginap: ${nights} Malam\n- Jumlah Tamu: ${guestsDetail}\n\nNominal yang perlu dilunasi sebesar *${formatCurrency(remainingAmount)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
+                return `Halo ${booking.guest_name},\n\nBerikut tagihan pelunasan untuk pemesanan unit *${booking.property?.name}*.\n\n*Rincian Pemesanan:*\n- Tanggal Check-in: ${formatDateHelper(booking.check_in)}\n- Tanggal Check-out: ${formatDateHelper(booking.check_out)}\n- Durasi Menginap: ${nights} Malam\n- Jumlah Tamu: ${guestsDetail}\n\nNominal yang perlu dilunasi sebesar *${formatCurrency(remAmt)}* melalui link pembayaran berikut:\n${link}\n\nTerima kasih!`;
 
             case 'check_in':
                 return `Halo ${booking.guest_name},\n\nKami menanti kedatangan Anda hari ini di *${booking.property?.name}*.\n\nBerikut petunjuk check-in Anda:\n- Waktu Check-in: Mulai pukul ${formatTimeHelper(booking.property?.check_in_time || '14:00')}\n- Lokasi Maps: ${booking.property?.maps_link || '-'}\n\nJika ada pertanyaan atau kendala selama check-in, silakan hubungi kami di nomor ini. Sampai jumpa!`;
@@ -480,7 +519,7 @@ export default function BookingDetailModal({
                 return `Halo ${booking.guest_name},\n\nMengingatkan kembali bahwa waktu check-out hari ini maksimal pukul ${formatTimeHelper(booking.property?.check_out_time || '12:00')}.\n\nSebelum check-out, mohon kesediaannya untuk mematikan AC & lampu, serta meletakkan kunci di tempat semula. Terima kasih banyak telah menginap bersama kami dan semoga perjalanan Anda menyenangkan!`;
 
             case 'review':
-                return `Halo ${booking.guest_name},\n\nTerima kasih banyak telah menginap di *${booking.property?.name}*.\n\nBagaimana pengalaman menginap Anda bersama kami? Kami sangat menghargai jika Anda bersedia memberikan ulasan singkat melalui link berikut:\n${reviewLink}\n\nSemoga kita bisa berjumpa kembali di lain kesempatan!`;
+                return `Halo ${booking.guest_name},\n\nTerima kasih banyak telah menginap di *${booking.property?.name}*.\n\nBagaimana pengalaman menginap Anda bersama kami? Kami sangat menghargai jika Anda bersedia memberikan ulasan singkat melalui link berikut:\n${link}\n\nSemoga kita bisa berjumpa kembali di lain kesempatan!`;
 
             default:
                 return '';
@@ -489,14 +528,12 @@ export default function BookingDetailModal({
 
     const copyWhatsAppMessage = () => {
         const message = getWhatsAppTemplateMessage(selectedTemplate);
-        navigator.clipboard.writeText(message);
-        toast.success('Pesan WhatsApp disalin ke clipboard!');
+        copyToClipboard(message, 'Pesan WhatsApp disalin ke clipboard!');
     };
 
     const sendWhatsAppMessage = () => {
         const message = getWhatsAppTemplateMessage(selectedTemplate);
-        navigator.clipboard.writeText(message);
-        toast.success('Pesan disalin & membuka WhatsApp...');
+        copyToClipboard(message, 'Pesan disalin & membuka WhatsApp...');
         const waLink = getWhatsAppLink(booking.guest_phone, message);
         window.open(waLink, '_blank', 'noopener,noreferrer');
     };
@@ -509,6 +546,10 @@ export default function BookingDetailModal({
         }
         if (paymentAmount <= 0) {
             toast.error('Jumlah pembayaran harus lebih dari 0');
+            return;
+        }
+        if (!proofOfPayment) {
+            toast.error('Upload gambar bukti transfer wajib diisi!');
             return;
         }
         setIsSubmittingPayment(true);
@@ -1191,7 +1232,7 @@ export default function BookingDetailModal({
                                                                     />
                                                                 </label>
                                                             )}
-                                                            <p className="text-[11px] text-slate-400">Opsional. Gambar otomatis dikompres.</p>
+                                                            <p className="text-[11px] font-medium text-amber-600">Bukti pembayaran transfer wajib diunggah. Gambar otomatis dikompres.</p>
                                                         </div>
                                                     </div>
                                                 </div>

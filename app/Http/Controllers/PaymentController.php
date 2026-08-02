@@ -756,7 +756,7 @@ class PaymentController extends Controller
             DB::commit();
 
             if (! Auth::check()) {
-                return redirect()->route('booking.secure-payment', [$booking->booking_number, $token])
+                return redirect()->route('payments.create', $booking->booking_number)
                     ->with('success', 'Pembayaran berhasil dikirim. Kami akan memverifikasi pembayaran Anda secara otomatis.');
             }
 

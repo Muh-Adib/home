@@ -254,6 +254,7 @@ export interface Booking {
     followed_up_by_user?: User;
     review?: Review | null;
     payment_token?: string;
+    payment_link?: string;
 }
 
 export interface Review {

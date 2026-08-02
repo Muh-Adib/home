@@ -527,14 +527,7 @@ class Booking extends Model
     protected function paymentLink(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                // Generate payment token if not exists or if expired
-                if (! $this->payment_token || ($this->payment_token_expires_at && $this->payment_token_expires_at->isPast())) {
-                    $this->generatePaymentToken();
-                }
-
-                return $this->getSecurePaymentUrl();
-            }
+            get: fn () => route('payments.create', ['booking' => $this->booking_number])
         );
     }
 

@@ -414,7 +414,11 @@ class BookingApiController extends Controller
                 'account_number' => 'nullable|string|max:50',
                 'account_name' => 'nullable|string|max:255',
                 'notes' => 'nullable|string|max:1000',
-                'proof_of_payment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
+                'proof_of_payment' => 'required|file|mimes:jpg,jpeg,png,pdf,webp,heic,heif|max:10240',
+            ], [
+                'proof_of_payment.required' => 'Bukti pembayaran transfer wajib diunggah.',
+                'proof_of_payment.mimes' => 'Format file bukti pembayaran harus berupa gambar atau PDF.',
+                'proof_of_payment.max' => 'Ukuran file bukti pembayaran maksimum 10MB.',
             ]);
         } catch (ValidationException $e) {
             Log::error('Validation failed in storePayment: '.json_encode($e->errors()).' | Payload: '.json_encode($request->all()));

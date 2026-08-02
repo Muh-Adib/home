@@ -131,13 +131,8 @@ trait HasPaymentManagement
      */
     public function getSecurePaymentUrl(): ?string
     {
-        if (! $this->payment_token) {
-            return null;
-        }
-
-        return route('booking.secure-payment', [
+        return route('payments.create', [
             'booking' => $this->booking_number,
-            'token' => $this->payment_token,
         ]);
     }
 
