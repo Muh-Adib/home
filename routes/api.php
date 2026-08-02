@@ -120,8 +120,10 @@ Route::prefix('v1')->name('api.v1.')->middleware(['api', 'auth.api'])->group(fun
     |--------------------------------------------------------------------------
     */
     Route::prefix('finance')->name('finance.')->group(function () {
+        Route::get('/report', [FinancialMcpApiController::class, 'getMonthlyReport'])->name('report');
         Route::get('/july-report', [FinancialMcpApiController::class, 'getMonthlyReport'])->name('july-report');
         Route::post('/expenses', [FinancialMcpApiController::class, 'recordExpense'])->name('record-expense');
+        Route::get('/diagnose', [FinancialMcpApiController::class, 'diagnose'])->name('diagnose');
     });
 });
 

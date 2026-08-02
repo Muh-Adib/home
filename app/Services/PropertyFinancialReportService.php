@@ -45,19 +45,32 @@ class PropertyFinancialReportService
     }
 
     /**
-     * Generate & Calculate monthly financial report per property according to ownership schema
+     * Generate & Calculate financial report per property according to ownership schema for any period
      */
     public function generateMonthlyReport(
-        int $month = 7,
-        int $year = 2026,
+        ?int $month = null,
+        ?int $year = null,
         ?int $propertyId = null,
         bool $saveToDatabase = true,
-        ?int $generatedBy = null
+        ?int $generatedBy = null,
+        ?string $from = null,
+        ?string $to = null
     ): array {
-        $startDate = Carbon::create($year, $month, 1)->startOfMonth()->toDateString();
-        $endDate = Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
-        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-        $monthFactor = round($daysInMonth / 30.0, 4);
+        $now = now();
+        $month = $month ?: (int) $now->format('m');
+        $year = $year ?: (int) $now->format('Y');
+
+        if ($from && $to) {
+            $startDate = Carbon::parse($from)->toDateString();
+            $endDate = Carbon::parse($to)->toDateString();
+            $daysInMonth = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        } else {
+            $startDate = Carbon::create($year, $month, 1)->startOfMonth()->toDateString();
+            $endDate = Carbon::create($year, $month, 1)->endOfMonth()->toDateString();
+            $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
+        }
+
+        $monthFactor = max(0.1, round($daysInMonth / 30.0, 4));
 
         $propertiesQuery = Property::query();
         if ($propertyId) {

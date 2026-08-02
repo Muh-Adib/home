@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\DeploymentDiagnosticService;
 use App\Services\PropertyFinancialReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,16 +18,25 @@ class FinancialMcpApiController extends Controller
     }
 
     /**
-     * Get End-of-Month Financial Report per property based on ownership schema
+     * Get Financial Report per property based on ownership schema for any period
      */
     public function getMonthlyReport(Request $request): JsonResponse
     {
-        $month = (int) $request->input('month', 7);
-        $year = (int) $request->input('year', 2026);
+        $month = $request->filled('month') ? (int) $request->input('month') : null;
+        $year = $request->filled('year') ? (int) $request->input('year') : null;
+        $from = $request->input('from');
+        $to = $request->input('to');
         $propertyId = $request->input('property_id') ? (int) $request->input('property_id') : null;
         $saveToDb = $request->boolean('save', true);
 
-        $reportData = $this->reportService->generateMonthlyReport($month, $year, $propertyId, $saveToDb);
+        $reportData = $this->reportService->generateMonthlyReport(
+            month: $month,
+            year: $year,
+            propertyId: $propertyId,
+            saveToDatabase: $saveToDb,
+            from: $from,
+            to: $to
+        );
 
         return response()->json([
             'success' => true,
@@ -64,6 +74,19 @@ class FinancialMcpApiController extends Controller
             'success' => true,
             'message' => 'Pengeluaran Rp '.number_format($expense->amount, 0, ',', '.').' berhasil dicatat.',
             'expense' => $expense,
+        ]);
+    }
+
+    /**
+     * Run full diagnostic and data auto-repair
+     */
+    public function diagnose(DeploymentDiagnosticService $diagnosticService): JsonResponse
+    {
+        $result = $diagnosticService->runFullDiagnosticAndRepair();
+
+        return response()->json([
+            'success' => true,
+            'result' => $result,
         ]);
     }
 }
