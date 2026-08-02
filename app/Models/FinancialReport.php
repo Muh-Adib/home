@@ -16,36 +16,34 @@ class FinancialReport extends Model
     protected $fillable = [
         'property_id',
         'report_type',
-        'period_start',
-        'period_end',
+        'report_period',
+        'start_date',
+        'end_date',
         'total_revenue',
         'total_expenses',
         'net_profit',
         'occupancy_rate',
-        'average_daily_rate',
-        'revenue_per_available_room',
+        'adr',
+        'revpar',
         'booking_count',
         'guest_count',
-        'cancellation_rate',
         'report_data',
         'generated_by',
         'generated_at',
-        'status',
     ];
 
     /**
      * The attributes that should be cast.
      */
     protected $casts = [
-        'period_start' => 'date',
-        'period_end' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
         'total_revenue' => 'decimal:2',
         'total_expenses' => 'decimal:2',
         'net_profit' => 'decimal:2',
         'occupancy_rate' => 'decimal:2',
-        'average_daily_rate' => 'decimal:2',
-        'revenue_per_available_room' => 'decimal:2',
-        'cancellation_rate' => 'decimal:2',
+        'adr' => 'decimal:2',
+        'revpar' => 'decimal:2',
         'report_data' => 'array',
         'generated_at' => 'datetime',
     ];

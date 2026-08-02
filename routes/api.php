@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AvailabilityApiController;
 use App\Http\Controllers\Api\V1\ConversationApiController;
 use App\Http\Controllers\Api\V1\EscalationApiController;
 use App\Http\Controllers\Api\V1\FaqApiController;
+use App\Http\Controllers\Api\V1\FinancialMcpApiController;
 use App\Http\Controllers\Api\V1\LeadApiController;
 use App\Http\Controllers\Api\V1\PropertyApiController;
 use App\Http\Controllers\Api\V1\QuoteApiController;
@@ -111,6 +112,16 @@ Route::prefix('v1')->name('api.v1.')->middleware(['api', 'auth.api'])->group(fun
         Route::get('/', [WebhookApiController::class, 'index'])->name('index');
         Route::post('/register', [WebhookApiController::class, 'register'])->name('register');
         Route::delete('/', [WebhookApiController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Finance & MCP Management
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::get('/july-report', [FinancialMcpApiController::class, 'getMonthlyReport'])->name('july-report');
+        Route::post('/expenses', [FinancialMcpApiController::class, 'recordExpense'])->name('record-expense');
     });
 });
 
