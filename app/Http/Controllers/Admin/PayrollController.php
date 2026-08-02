@@ -278,77 +278,19 @@ class PayrollController extends Controller
                     $highestColumn = $sheet->getHighestColumn();
                     $highestColIdx = Coordinate::columnIndexFromString($highestColumn);
 
-                    $foundInSheet = false;
-
-                    // --- FORMAT 1: Solution / BioFinger / ZKTeco Standard Report (User ID in row, logs in r+2) ---
-                    for ($r = 1; $r <= $highestRow; $r++) {
-                        for ($c = 1; $c <= min(15, $highestColIdx); $c++) {
-                            $cellVal = trim((string) $sheet->getCell([$c, $r])->getValue());
-
-                            if (preg_match('/(User\s*ID|ID\s*:?|No\.\s*ID|PIN\s*:?)/i', $cellVal)) {
-                                // Extract Fingerprint ID
-                                $idVal = '';
-                                if (preg_match('/(?:User\s*ID|ID|PIN)\s*:?\s*(\d+)/i', $cellVal, $m)) {
-                                    $idVal = $m[1];
-                                } else {
-                                    $nextVal = trim((string) $sheet->getCell([$c + 1, $r])->getValue());
-                                    if (! empty($nextVal)) {
-                                        $idVal = $nextVal;
-                                    }
-                                }
-
-                                // Extract Name
-                                $nameVal = '';
-                                for ($nc = $c + 2; $nc <= min($c + 15, $highestColIdx); $nc++) {
-                                    $nVal = trim((string) $sheet->getCell([$nc, $r])->getValue());
-                                    if (! empty($nVal) && ! preg_match('/^(Name|Nama|User ID|ID|No|PIN)/i', $nVal) && ! is_numeric($nVal)) {
-                                        $nameVal = $nVal;
-                                        break;
-                                    }
-                                }
-
-                                if ($idVal === '' && $nameVal === '') {
-                                    continue;
-                                }
-
-                                $foundInSheet = true;
-                                $logRow = $r + 2;
-                                if ($logRow > $highestRow) {
-                                    $logRow = $r + 1;
-                                }
-
-                                $empLogs = [];
-                                for ($day = 1; $day <= $daysInMonth; $day++) {
-                                    $col = $day + 1;
-                                    if ($col > $highestColIdx) {
-                                        break;
-                                    }
-
-                                    $rawVal = trim((string) $sheet->getCell([$col, $logRow])->getValue());
-                                    if ($rawVal !== '') {
-                                        [$checkIn, $checkOut] = $this->parseTimes($rawVal);
-                                        $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
-                                        $empLogs[] = [
-                                            'day' => $day,
-                                            'date' => $dateStr,
-                                            'check_in' => $checkIn ?: '—',
-                                            'check_out' => $checkOut ?: '—',
-                                            'raw' => $rawVal,
-                                        ];
-                                    }
-                                }
-
-                                $attendanceSummary[] = [
-                                    'fingerprint_id' => (string) $idVal,
-                                    'name' => $nameVal,
-                                    'days_logs' => $empLogs,
-                                ];
-                            }
+                    // Check if sheet uses FORMAT 2 (15-Column Block Matrix Format used by Solution/BioFinger multi-employee reports)
+                    $isBlockMatrixFormat = false;
+                    for ($colStart = 1; $colStart < $highestColIdx; $colStart += 15) {
+                        $c10 = trim((string) $sheet->getCell([$colStart, 10])->getValue());
+                        $c4Title = trim((string) $sheet->getCell([$colStart + 8, 4])->getValue());
+                        $c5Title = trim((string) $sheet->getCell([$colStart + 8, 5])->getValue());
+                        if ($c10 === 'Catatan Kehadiran' || $c4Title === 'Nama' || $c5Title === 'User ID') {
+                            $isBlockMatrixFormat = true;
+                            break;
                         }
                     }
 
-                    // --- FORMAT 2: 15-Column Block Matrix Format ---
-                    if (! $foundInSheet) {
+                    if ($isBlockMatrixFormat) {
                         for ($colStart = 1; $colStart < $highestColIdx; $colStart += 15) {
                             $name = $sheet->getCell([$colStart + 9, 4])->getValue();
                             $fingerprintId = $sheet->getCell([$colStart + 9, 5])->getValue();
@@ -359,6 +301,11 @@ class PayrollController extends Controller
 
                             $name = trim((string) $name);
                             $fingerprintId = trim((string) $fingerprintId);
+
+                            if (preg_match('/^(Nama|User ID|Departemen|Dept)/i', $name) || preg_match('/^(Nama|User ID|Departemen|Dept)/i', $fingerprintId)) {
+                                continue;
+                            }
+
                             $daysLogs = [];
 
                             for ($row = 13; $row <= 43; $row++) {
@@ -374,10 +321,10 @@ class PayrollController extends Controller
 
                                 $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
 
-                                $inPagi = $sheet->getCell([$colStart + 1, $row])->getValue();
-                                $outPagi = $sheet->getCell([$colStart + 3, $row])->getValue();
-                                $inSiang = $sheet->getCell([$colStart + 6, $row])->getValue();
-                                $outSiang = $sheet->getCell([$colStart + 8, $row])->getValue();
+                                $inPagi = trim((string) $sheet->getCell([$colStart + 1, $row])->getValue());
+                                $outPagi = trim((string) $sheet->getCell([$colStart + 3, $row])->getValue());
+                                $inSiang = trim((string) $sheet->getCell([$colStart + 6, $row])->getValue());
+                                $outSiang = trim((string) $sheet->getCell([$colStart + 8, $row])->getValue());
 
                                 $checkIn = $inPagi ?: $inSiang;
                                 $checkOut = $outSiang ?: $outPagi;
@@ -395,6 +342,72 @@ class PayrollController extends Controller
                                 'fingerprint_id' => $fingerprintId,
                                 'days_logs' => $daysLogs,
                             ];
+                        }
+                    } else {
+                        // --- FORMAT 1: Single-Table Format (User ID in header/row) ---
+                        for ($r = 1; $r <= $highestRow; $r++) {
+                            for ($c = 1; $c <= min(15, $highestColIdx); $c++) {
+                                $cellVal = trim((string) $sheet->getCell([$c, $r])->getValue());
+
+                                if (preg_match('/(User\s*ID|ID\s*:?|No\.\s*ID|PIN\s*:?)/i', $cellVal)) {
+                                    // Extract Fingerprint ID
+                                    $idVal = '';
+                                    if (preg_match('/(?:User\s*ID|ID|PIN)\s*:?\s*(\d+)/i', $cellVal, $m)) {
+                                        $idVal = $m[1];
+                                    } else {
+                                        $nextVal = trim((string) $sheet->getCell([$c + 1, $r])->getValue());
+                                        if (! empty($nextVal)) {
+                                            $idVal = $nextVal;
+                                        }
+                                    }
+
+                                    // Extract Name
+                                    $nameVal = '';
+                                    for ($nc = $c + 2; $nc <= min($c + 15, $highestColIdx); $nc++) {
+                                        $nVal = trim((string) $sheet->getCell([$nc, $r])->getValue());
+                                        if (! empty($nVal) && ! preg_match('/^(Name|Nama|User ID|ID|No|PIN)/i', $nVal) && ! is_numeric($nVal)) {
+                                            $nameVal = $nVal;
+                                            break;
+                                        }
+                                    }
+
+                                    if ($idVal === '' && $nameVal === '') {
+                                        continue;
+                                    }
+
+                                    $logRow = $r + 2;
+                                    if ($logRow > $highestRow) {
+                                        $logRow = $r + 1;
+                                    }
+
+                                    $empLogs = [];
+                                    for ($day = 1; $day <= $daysInMonth; $day++) {
+                                        $col = $day + 1;
+                                        if ($col > $highestColIdx) {
+                                            break;
+                                        }
+
+                                        $rawVal = trim((string) $sheet->getCell([$col, $logRow])->getValue());
+                                        if ($rawVal !== '') {
+                                            [$checkIn, $checkOut] = $this->parseTimes($rawVal);
+                                            $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                                            $empLogs[] = [
+                                                'day' => $day,
+                                                'date' => $dateStr,
+                                                'check_in' => $checkIn ?: '—',
+                                                'check_out' => $checkOut ?: '—',
+                                                'raw' => $rawVal,
+                                            ];
+                                        }
+                                    }
+
+                                    $attendanceSummary[] = [
+                                        'fingerprint_id' => (string) $idVal,
+                                        'name' => $nameVal,
+                                        'days_logs' => $empLogs,
+                                    ];
+                                }
+                            }
                         }
                     }
                 }
