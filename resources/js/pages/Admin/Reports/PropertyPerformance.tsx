@@ -49,6 +49,8 @@ interface Property {
 
 interface OverviewStats {
     totalRevenue: number;
+    totalExpenses?: number;
+    netProfit?: number;
     totalBookings: number;
     occupancyRate: number;
     adr: number;
@@ -70,6 +72,8 @@ interface PropertyPerformanceItem {
     id: number;
     name: string;
     total_revenue: number;
+    total_expenses?: number;
+    net_profit?: number;
     total_bookings: number;
     occupancy_rate: number;
     adr: number;
@@ -588,21 +592,53 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                 </div>
 
                 {/* KPI Metrics Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                     {/* Revenue Card */}
                     <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
                         <div className="flex justify-between items-start">
                             <div className="space-y-1">
                                 <p className="text-xs font-bold text-white/80 uppercase">Total Pendapatan</p>
-                                <p className="text-2xl font-black">{formatShort(data.overview.totalRevenue)}</p>
+                                <p className="text-xl sm:text-2xl font-black">{formatShort(data.overview.totalRevenue)}</p>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-white/20">
+                            <div className="p-2 rounded-xl bg-white/20">
                                 <DollarSign className="h-5 w-5 text-white" />
                             </div>
                         </div>
-                        <div className="mt-4 flex items-center gap-1.5 text-xs text-white/90 font-medium">
-                            <TrendingUp className="h-4 w-4" />
-                            <span>Berdasarkan rincian per malam</span>
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-white/90 font-medium">
+                            <TrendingUp className="h-3.5 w-3.5" />
+                            <span>Rincian per malam</span>
+                        </div>
+                    </div>
+
+                    {/* Expense Card */}
+                    <div className="bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+                        <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                                <p className="text-xs font-bold text-white/80 uppercase">Total Pengeluaran</p>
+                                <p className="text-xl sm:text-2xl font-black">{formatShort(data.overview.totalExpenses ?? 0)}</p>
+                            </div>
+                            <div className="p-2 rounded-xl bg-white/20">
+                                <CreditCard className="h-5 w-5 text-white" />
+                            </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-white/90 font-medium">
+                            <span>Pengeluaran operasional</span>
+                        </div>
+                    </div>
+
+                    {/* Net Profit Card */}
+                    <div className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+                        <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                                <p className="text-xs font-bold text-white/80 uppercase">Laba Bersih (Net)</p>
+                                <p className="text-xl sm:text-2xl font-black">{formatShort(data.overview.netProfit ?? (data.overview.totalRevenue - (data.overview.totalExpenses ?? 0)))}</p>
+                            </div>
+                            <div className="p-2 rounded-xl bg-white/20">
+                                <Sparkles className="h-5 w-5 text-white" />
+                            </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-white/90 font-medium">
+                            <span>Pendapatan - Pengeluaran</span>
                         </div>
                     </div>
 
@@ -611,14 +647,14 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                         <div className="flex justify-between items-start">
                             <div className="space-y-1">
                                 <p className="text-xs font-bold text-white/80 uppercase">Total Booking</p>
-                                <p className="text-2xl font-black">{data.overview.totalBookings}</p>
+                                <p className="text-xl sm:text-2xl font-black">{data.overview.totalBookings}</p>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-white/20">
+                            <div className="p-2 rounded-xl bg-white/20">
                                 <Calendar className="h-5 w-5 text-white" />
                             </div>
                         </div>
-                        <div className="mt-4 flex items-center gap-1.5 text-xs text-white/90 font-medium">
-                            <span>Booking aktif pada periode</span>
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-white/90 font-medium">
+                            <span>Booking aktif periode</span>
                         </div>
                     </div>
 
@@ -627,46 +663,30 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                         <div className="flex justify-between items-start">
                             <div className="space-y-1">
                                 <p className="text-xs font-bold text-white/80 uppercase">Okupansi Properti</p>
-                                <p className="text-2xl font-black">{data.overview.occupancyRate}%</p>
+                                <p className="text-xl sm:text-2xl font-black">{data.overview.occupancyRate}%</p>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-white/20">
+                            <div className="p-2 rounded-xl bg-white/20">
                                 <TrendingUp className="h-5 w-5 text-white" />
                             </div>
                         </div>
-                        <div className="mt-3.5">
+                        <div className="mt-3">
                             <Progress value={data.overview.occupancyRate} className="h-1.5 bg-white/20" />
                         </div>
                     </div>
 
-                    {/* ADR Card */}
+                    {/* ADR / RevPAR Card */}
                     <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
                         <div className="flex justify-between items-start">
                             <div className="space-y-1">
-                                <p className="text-xs font-bold text-white/80 uppercase">Rerata Tarif Harian (ADR)</p>
-                                <p className="text-xl font-black">{formatShort(data.overview.adr)}</p>
+                                <p className="text-xs font-bold text-white/80 uppercase">ADR / RevPAR</p>
+                                <p className="text-lg font-black">{formatShort(data.overview.adr)}</p>
                             </div>
-                            <div className="p-2.5 rounded-xl bg-white/20">
+                            <div className="p-2 rounded-xl bg-white/20">
                                 <Building2 className="h-5 w-5 text-white" />
                             </div>
                         </div>
-                        <div className="mt-4 flex items-center gap-1.5 text-xs text-white/90 font-medium">
-                            <span>Total Revenue / Hari Okupansi</span>
-                        </div>
-                    </div>
-
-                    {/* RevPAR Card */}
-                    <div className="bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
-                        <div className="flex justify-between items-start">
-                            <div className="space-y-1">
-                                <p className="text-xs font-bold text-white/80 uppercase">RevPAR</p>
-                                <p className="text-xl font-black">{formatShort(data.overview.revpar)}</p>
-                            </div>
-                            <div className="p-2.5 rounded-xl bg-white/20">
-                                <TrendingUp className="h-5 w-5 text-white" />
-                            </div>
-                        </div>
-                        <div className="mt-4 flex items-center gap-1.5 text-xs text-white/90 font-medium">
-                            <span>Pendapatan per Kamar Tersedia</span>
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-white/90 font-medium">
+                            <span>RevPAR: {formatShort(data.overview.revpar)}</span>
                         </div>
                     </div>
                 </div>
@@ -682,7 +702,7 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                 </CardTitle>
                                 <CardDescription className="text-xs font-medium text-slate-500 mt-1">
                                     {selectedProperty === 'all' 
-                                        ? 'Perbandingan tren pendapatan harian untuk semua properti aktif'
+                                        ? 'Perbandingan tren pendapatan harian per masing-masing properti aktif'
                                         : `Rincian tren harian dan breakdown tarif properti terpilih`}
                                 </CardDescription>
                             </div>
@@ -699,10 +719,7 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                         <Tooltip content={<CustomTooltip />} />
                                         <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 12, fontWeight: 500 }} />
                                         
-                                        {/* Total Line */}
-                                        <Line type="monotone" dataKey="total" name="Total Gabungan" stroke="#6366f1" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
-                                        
-                                        {/* Property Lines */}
+                                        {/* Property Lines (Without skewed Total Gabungan line) */}
                                         {properties.map((prop, idx) => (
                                             <Line
                                                 key={prop.id}
@@ -710,7 +727,7 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                                 dataKey={prop.name}
                                                 name={prop.name}
                                                 stroke={PROPERTY_COLORS[idx % PROPERTY_COLORS.length]}
-                                                strokeWidth={1.5}
+                                                strokeWidth={2}
                                                 dot={false}
                                             />
                                         ))}
@@ -769,6 +786,8 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                         <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
                                             <th className="text-left py-4 px-5">Nama Properti</th>
                                             <th className="text-right py-4 px-5">Total Revenue</th>
+                                            <th className="text-right py-4 px-5">Pengeluaran</th>
+                                            <th className="text-right py-4 px-5">Laba Bersih</th>
                                             <th className="text-center py-4 px-5">Bookings</th>
                                             <th className="text-center py-4 px-5">Okupansi</th>
                                             <th className="text-right py-4 px-5">ADR</th>
@@ -776,31 +795,37 @@ export default function PropertyPerformance({ properties, filters, data }: Prope
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
-                                        {data.propertyPerformance.map((p) => (
-                                            <tr 
-                                                key={p.id} 
-                                                onClick={() => {
-                                                    setSelectedProperty(p.id.toString());
-                                                    handleFilterChange({ property_id: p.id.toString() });
-                                                }}
-                                                className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
-                                                    selectedProperty === p.id.toString() ? 'bg-indigo-50/40 hover:bg-indigo-50/60 font-semibold' : ''
-                                                }`}
-                                            >
-                                                <td className="py-4 px-5 font-bold text-slate-800 flex items-center gap-2">
-                                                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                                                    {p.name}
-                                                </td>
-                                                <td className="text-right py-4 px-5 text-emerald-600 font-bold">{formatCurrency(p.total_revenue)}</td>
-                                                <td className="text-center py-4 px-5"><Badge variant="secondary">{p.total_bookings} booking</Badge></td>
-                                                <td className="text-center py-4 px-5">{p.occupancy_rate}%</td>
-                                                <td className="text-right py-4 px-5 text-slate-600">{formatShort(p.adr)}</td>
-                                                <td className="text-right py-4 px-5 text-slate-600">{formatShort(p.revpar)}</td>
-                                            </tr>
-                                        ))}
+                                        {data.propertyPerformance.map((p) => {
+                                            const exp = p.total_expenses ?? 0;
+                                            const net = p.net_profit ?? (p.total_revenue - exp);
+                                            return (
+                                                <tr 
+                                                    key={p.id} 
+                                                    onClick={() => {
+                                                        setSelectedProperty(p.id.toString());
+                                                        handleFilterChange({ property_id: p.id.toString() });
+                                                    }}
+                                                    className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                                                        selectedProperty === p.id.toString() ? 'bg-indigo-50/40 hover:bg-indigo-50/60 font-semibold' : ''
+                                                    }`}
+                                                >
+                                                    <td className="py-4 px-5 font-bold text-slate-800 flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                                                        {p.name}
+                                                    </td>
+                                                    <td className="text-right py-4 px-5 text-emerald-600 font-bold">{formatCurrency(p.total_revenue)}</td>
+                                                    <td className="text-right py-4 px-5 text-rose-600 font-semibold">{formatCurrency(exp)}</td>
+                                                    <td className={`text-right py-4 px-5 font-bold ${net >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{formatCurrency(net)}</td>
+                                                    <td className="text-center py-4 px-5"><Badge variant="secondary">{p.total_bookings} booking</Badge></td>
+                                                    <td className="text-center py-4 px-5">{p.occupancy_rate}%</td>
+                                                    <td className="text-right py-4 px-5 text-slate-600">{formatShort(p.adr)}</td>
+                                                    <td className="text-right py-4 px-5 text-slate-600">{formatShort(p.revpar)}</td>
+                                                </tr>
+                                            );
+                                        })}
                                         {data.propertyPerformance.length === 0 && (
                                             <tr>
-                                                <td colSpan={6} className="text-center py-10 text-slate-400 font-medium">Tidak ada data performa properti</td>
+                                                <td colSpan={8} className="text-center py-10 text-slate-400 font-medium">Tidak ada data performa properti</td>
                                             </tr>
                                         )}
                                     </tbody>

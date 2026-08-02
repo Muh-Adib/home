@@ -43,6 +43,8 @@ import { DateRange } from '@/components/ui/date-range';
 
 interface ReportsOverview {
     totalRevenue: number;
+    totalExpenses?: number;
+    netProfit?: number;
     totalBookings: number;
     averageBookingValue: number;
     occupancyRate: number;
@@ -406,7 +408,7 @@ export default function ReportsIndex({ data, properties, filters }: ReportsIndex
                     </div>
 
                     {/* KPI Cards Grid */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-6">
                         <KPICard
                             title="Total Pendapatan"
                             value={data.overview.totalRevenue}
@@ -416,27 +418,153 @@ export default function ReportsIndex({ data, properties, filters }: ReportsIndex
                             prefix="Rp"
                         />
                         <KPICard
-                            title="Booking"
+                            title="Total Pengeluaran"
+                            value={data.overview.totalExpenses ?? 0}
+                            icon={CreditCard}
+                            gradient="bg-gradient-to-br from-rose-500 to-red-600"
+                            prefix="Rp"
+                        />
+                        <KPICard
+                            title="Laba Bersih (Net)"
+                            value={data.overview.netProfit ?? (data.overview.totalRevenue - (data.overview.totalExpenses ?? 0))}
+                            icon={Sparkles}
+                            gradient="bg-gradient-to-br from-cyan-600 to-blue-700"
+                            prefix="Rp"
+                        />
+                        <KPICard
+                            title="Total Booking"
                             value={data.overview.totalBookings}
                             growth={data.overview.bookingsGrowth}
                             icon={Calendar}
                             gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
                         />
                         <KPICard
-                            title="Rata-rata"
-                            value={data.overview.averageBookingValue}
-                            icon={Zap}
-                            gradient="bg-gradient-to-br from-amber-500 to-orange-600"
-                            prefix="Rp"
-                        />
-                        <KPICard
-                            title="Okupansi"
+                            title="Okupansi Portfolio"
                             value={data.overview.occupancyRate}
                             growth={data.overview.occupancyGrowth}
                             icon={Target}
                             gradient="bg-gradient-to-br from-purple-500 to-pink-600"
                             suffix="%"
                         />
+                    </div>
+                </div>
+
+                {/* Master Report Modules Navigator */}
+                <div className="px-1 mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <BarChart3 className="h-5 w-5 text-indigo-600" />
+                                Modul Laporan Utama
+                            </h2>
+                            <p className="text-xs font-medium text-slate-500">Pilih modul laporan mendalam di bawah ini untuk melihat detail lengkap</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* 1. Property Performance Report Card */}
+                        <Link href="/admin/reports/property-performance" className="group">
+                            <Card className="h-full border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl group-hover:-translate-y-1 overflow-hidden relative">
+                                <div className="h-2 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                                <CardHeader className="p-5 pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                            <Building2 className="h-6 w-6" />
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                    <CardTitle className="text-base font-bold text-slate-800 mt-3 group-hover:text-emerald-700 transition-colors">
+                                        Pendapatan Harian Properti
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-slate-500 leading-relaxed mt-1">
+                                        Visualisasi harian, rincian pengeluaran per properti, laba bersih, & rincian tarif per malam.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-5 pt-0 mt-2">
+                                    <span className="text-xs font-bold text-emerald-600 group-hover:underline flex items-center gap-1">
+                                        Buka Laporan Performance →
+                                    </span>
+                                </CardContent>
+                            </Card>
+                        </Link>
+
+                        {/* 2. Financial Overview Report Card */}
+                        <Link href="/admin/reports/financial" className="group">
+                            <Card className="h-full border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl group-hover:-translate-y-1 overflow-hidden relative">
+                                <div className="h-2 bg-gradient-to-r from-blue-400 to-indigo-500" />
+                                <CardHeader className="p-5 pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-3 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                            <DollarSign className="h-6 w-6" />
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                    <CardTitle className="text-base font-bold text-slate-800 mt-3 group-hover:text-blue-700 transition-colors">
+                                        Laporan Keuangan
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-slate-500 leading-relaxed mt-1">
+                                        Rincian penerimaan, cash flow, pembayaran pending, & estimasi bagi hasil per pemilik.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-5 pt-0 mt-2">
+                                    <span className="text-xs font-bold text-blue-600 group-hover:underline flex items-center gap-1">
+                                        Buka Laporan Keuangan →
+                                    </span>
+                                </CardContent>
+                            </Card>
+                        </Link>
+
+                        {/* 3. Occupancy Report Card */}
+                        <Link href="/admin/reports/occupancy" className="group">
+                            <Card className="h-full border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl group-hover:-translate-y-1 overflow-hidden relative">
+                                <div className="h-2 bg-gradient-to-r from-purple-400 to-pink-500" />
+                                <CardHeader className="p-5 pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-3 rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                            <Calendar className="h-6 w-6" />
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                    <CardTitle className="text-base font-bold text-slate-800 mt-3 group-hover:text-purple-700 transition-colors">
+                                        Laporan Okupansi
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-slate-500 leading-relaxed mt-1">
+                                        Tingkat hunian malam, pencapaian target 25 malam per unit, & sisa potensi malam terisi.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-5 pt-0 mt-2">
+                                    <span className="text-xs font-bold text-purple-600 group-hover:underline flex items-center gap-1">
+                                        Buka Laporan Okupansi →
+                                    </span>
+                                </CardContent>
+                            </Card>
+                        </Link>
+
+                        {/* 4. Staff Performance Card */}
+                        <Link href="/admin/reports/staff-performance" className="group">
+                            <Card className="h-full border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl group-hover:-translate-y-1 overflow-hidden relative">
+                                <div className="h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+                                <CardHeader className="p-5 pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="p-3 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                            <Users className="h-6 w-6" />
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                    <CardTitle className="text-base font-bold text-slate-800 mt-3 group-hover:text-amber-700 transition-colors">
+                                        Kinerja Staf & HK
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-slate-500 leading-relaxed mt-1">
+                                        Poin kebersihan housekeeping, rekap kehadiran absensi, & pembagian bonus bulanan.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-5 pt-0 mt-2">
+                                    <span className="text-xs font-bold text-amber-600 group-hover:underline flex items-center gap-1">
+                                        Buka Kinerja Staf →
+                                    </span>
+                                </CardContent>
+                            </Card>
+                        </Link>
                     </div>
                 </div>
 

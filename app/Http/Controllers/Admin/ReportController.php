@@ -11,6 +11,7 @@ use App\Models\BookingDailyRevenue;
 use App\Models\Income;
 use App\Models\Payment;
 use App\Models\Property;
+use App\Models\PropertyExpense;
 use App\Models\UnitDamageAction;
 use App\Models\User;
 use App\Services\HousekeepingPointService;
@@ -86,8 +87,10 @@ class ReportController extends Controller
             'data' => [
                 'overview' => [
                     'totalRevenue' => $financialData['total_revenue'],
+                    'totalExpenses' => $financialData['total_expenses'] ?? 0,
+                    'netProfit' => $financialData['net_profit'] ?? 0,
                     'totalBookings' => $bookingData['total_bookings'],
-                    'averageBookingValue' => $financialData['average_booking_value'],
+                    'averageBookingValue' => round($financialData['average_booking_value'], 0),
                     'occupancyRate' => round($occupancyRate, 1),
                     'revenueGrowth' => $revenueGrowth,
                     'bookingsGrowth' => $bookingsGrowth,
@@ -101,9 +104,9 @@ class ReportController extends Controller
             ],
             'properties' => $properties,
             'filters' => [
-                'date_from' => $dateFrom,
-                'date_to' => $dateTo,
-                'property_id' => $propertyId,
+                'date_from' => $startDate->toDateString(),
+                'date_to' => $endDate->toDateString(),
+                'property_id' => $propertyId ?: 'all',
                 'report_type' => $request->input('report_type', 'revenue'),
                 'period' => $period,
             ],
@@ -419,6 +422,12 @@ class ReportController extends Controller
             ->get()
             ->groupBy('property_id');
 
+        // Preload all expenses in the date range in a single query
+        $allExpenses = PropertyExpense::whereIn('property_id', $targetPropertyIds)
+            ->whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get()
+            ->groupBy('property_id');
+
         // Preload all bookings in a single query
         $allBookings = Booking::whereIn('property_id', $targetPropertyIds)
             ->confirmedBookings()
@@ -436,12 +445,15 @@ class ReportController extends Controller
                 $q->where('id', $propertyId);
             })
             ->get()
-            ->map(function ($property) use ($startDate, $endDate, $allIncomes, $allBookings) {
+            ->map(function ($property) use ($startDate, $endDate, $allIncomes, $allExpenses, $allBookings) {
                 $revenues = $allIncomes->get($property->id, collect());
+                $expenses = $allExpenses->get($property->id, collect());
 
                 $roomRevenue = $revenues->where('source', 'booking')->sum('amount');
                 $servicesRevenue = $revenues->where('source', '!=', 'booking')->sum('amount');
                 $totalRevenue = $roomRevenue + $servicesRevenue;
+                $totalExpenses = (float) $expenses->sum('amount');
+                $netProfit = $totalRevenue - $totalExpenses;
 
                 $bookingsCount = $allBookings->get($property->id, collect())->count();
 
@@ -457,6 +469,8 @@ class ReportController extends Controller
                     'name' => $property->name,
                     'color' => $property->color ?? '#3b82f6',
                     'total_revenue' => (float) $totalRevenue,
+                    'total_expenses' => (float) $totalExpenses,
+                    'net_profit' => (float) $netProfit,
                     'total_bookings' => $bookingsCount,
                     'occupancy_rate' => round($occupancyRate, 1),
                     'adr' => round($adr, 2),
@@ -469,6 +483,8 @@ class ReportController extends Controller
 
         // 3. Overall KPI Calculations
         $totalRevenue = collect($propertyPerformance)->sum('total_revenue');
+        $totalExpenses = collect($propertyPerformance)->sum('total_expenses');
+        $netProfit = $totalRevenue - $totalExpenses;
         $totalBookings = collect($propertyPerformance)->sum('total_bookings');
         $averageOccupancy = count($propertyPerformance) > 0 ? collect($propertyPerformance)->avg('occupancy_rate') : 0;
 
@@ -632,6 +648,8 @@ class ReportController extends Controller
             'properties' => $properties->toArray(),
             'overview' => [
                 'totalRevenue' => $totalRevenue,
+                'totalExpenses' => $totalExpenses,
+                'netProfit' => $netProfit,
                 'totalBookings' => $totalBookings,
                 'occupancyRate' => round($averageOccupancy, 1),
                 'adr' => round($overallAdr, 0),
@@ -1028,12 +1046,18 @@ class ReportController extends Controller
             ->confirmedBookings();
 
         $bookingQuery = Booking::where('booking_status', '!=', 'cancelled')
-            ->whereBetween('created_at', [$startDate, $endDate]);
+            ->where('check_in', '<=', $endDate->toDateString())
+            ->where('check_out', '>=', $startDate->toDateString());
+
+        $expensesQuery = PropertyExpense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()]);
 
         // Apply user role filtering
         if ($user && $user->role === 'property_owner') {
             $revenueQuery->forOwner($user->id);
             $bookingQuery->whereHas('property', function ($q) use ($user) {
+                $q->where('owner_id', $user->id);
+            });
+            $expensesQuery->whereHas('property', function ($q) use ($user) {
                 $q->where('owner_id', $user->id);
             });
         }
@@ -1042,9 +1066,13 @@ class ReportController extends Controller
         if ($propertyId) {
             $revenueQuery->where('property_id', $propertyId);
             $bookingQuery->where('property_id', $propertyId);
+            $expensesQuery->where('property_id', $propertyId);
         }
 
-        $totalRevenue = $revenueQuery->sum('amount');
+        $totalRevenue = (float) $revenueQuery->sum('amount');
+        $totalExpenses = (float) $expensesQuery->sum('amount');
+        $netProfit = $totalRevenue - $totalExpenses;
+
         $totalBookings = $bookingQuery->count();
         $averageBookingValue = $totalBookings > 0 ? $totalRevenue / $totalBookings : 0;
 
@@ -1072,6 +1100,8 @@ class ReportController extends Controller
 
         return [
             'total_revenue' => $totalRevenue,
+            'total_expenses' => $totalExpenses,
+            'net_profit' => $netProfit,
             'pending_payments' => $pendingPayments,
             'total_bookings' => $totalBookings,
             'average_booking_value' => $averageBookingValue,
@@ -1081,7 +1111,8 @@ class ReportController extends Controller
 
     private function getBookingOverview($startDate, $endDate, $user = null, $propertyId = null): array
     {
-        $bookingQuery = Booking::whereBetween('created_at', [$startDate, $endDate]);
+        $bookingQuery = Booking::where('check_in', '<=', $endDate->toDateString())
+            ->where('check_out', '>=', $startDate->toDateString());
 
         if ($user && $user->role === 'property_owner') {
             $bookingQuery->whereHas('property', function ($q) use ($user) {
