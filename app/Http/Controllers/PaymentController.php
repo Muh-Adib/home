@@ -124,7 +124,12 @@ class PaymentController extends Controller
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
         } else {
-            if (! $token || ! $booking->isPaymentTokenValid($token)) {
+            if ($token && $booking->isPaymentTokenValid($token)) {
+                // Valid token query parameter
+            } elseif (! $token && $booking->payment_token && $booking->isPaymentTokenValid($booking->payment_token)) {
+                // Direct plain URL access for valid booking: redirect to secure token link
+                return redirect()->to($booking->payment_link);
+            } else {
                 return redirect()->route('home')
                     ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
             }
@@ -262,7 +267,11 @@ class PaymentController extends Controller
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
         } else {
-            if (! $token || ! $booking->isPaymentTokenValid($token)) {
+            if ($token && $booking->isPaymentTokenValid($token)) {
+                // Valid token
+            } elseif (! $token && $booking->payment_token && $booking->isPaymentTokenValid($booking->payment_token)) {
+                // Valid token on booking model
+            } else {
                 return redirect()->route('home')
                     ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
             }
@@ -389,7 +398,7 @@ class PaymentController extends Controller
             DB::commit();
 
             if (! Auth::check()) {
-                return redirect()->route('payments.create', $booking->booking_number)
+                return redirect()->to($booking->payment_link)
                     ->with('success', 'Pembayaran berhasil dikirim. Kami akan memverifikasi pembayaran Anda secara otomatis.');
             }
 

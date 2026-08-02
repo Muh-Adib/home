@@ -994,7 +994,7 @@ class BookingManagementController extends Controller
 
         if ($booking->payment_status !== 'fully_paid') {
             $message .= "• Silakan selesaikan pembayaran untuk konfirmasi booking\n";
-            $message .= '• Link pembayaran: '.route('payments.create', $booking->booking_number)."\n\n";
+            $message .= '• Link pembayaran: '.$booking->payment_link."\n\n";
         } else {
             $message .= "• Pembayaran telah lunas ✅\n";
             $message .= "• Informasi check-in akan tersedia di dashboard Anda\n";
