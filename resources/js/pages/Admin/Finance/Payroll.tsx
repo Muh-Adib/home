@@ -1002,7 +1002,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                                                 {row.performance_bonus > 0 && <div className="text-purple-600">FO Follow-Up: +{formatCurrency(row.performance_bonus)}</div>}
                                                 {row.frontdesk_first_night_bonus > 0 && <div className="text-blue-600">FO Input Data: +{formatCurrency(row.frontdesk_first_night_bonus)}</div>}
                                                 {row.frontdesk_next_nights_bonus_share > 0 && <div className="text-indigo-600">FO Pool Malam: +{formatCurrency(row.frontdesk_next_nights_bonus_share)}</div>}
-                                                {row.housekeeping_bonus > 0 && <div className="text-emerald-600">HK Poin: +{formatCurrency(row.housekeeping_bonus)}</div>}
+                                                {row.housekeeping_bonus > 0 && <div className="text-emerald-600">HK Bonus: +{formatCurrency(row.housekeeping_bonus)} <span className="text-[10px] text-slate-500 font-normal">({row.hk_points ?? 0} Poin)</span></div>}
                                                 {row.standby_bonus > 0 && <div className="text-amber-600">Standby: +{formatCurrency(row.standby_bonus)}</div>}
                                                 {row.overtime_bonus > 0 && <div className="text-emerald-600">Lembur: +{formatCurrency(row.overtime_bonus)}</div>}
                                                 {row.custom_allowance > 0 && (
@@ -1625,7 +1625,7 @@ export default function Payroll({ payrolls, wallets, userShifts, versions, poolD
                                 )}
                                 {(selectedUserForPrint.housekeeping_bonus || 0) > 0 && (
                                     <div className="flex justify-between text-emerald-700">
-                                        <span>Bonus Housekeeping (Poin Sharing Pool)</span>
+                                        <span>Bonus Housekeeping ({selectedUserForPrint.hk_points ?? 0} Poin)</span>
                                         <span>+{formatCurrency(selectedUserForPrint.housekeeping_bonus)}</span>
                                     </div>
                                 )}

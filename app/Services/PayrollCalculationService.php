@@ -161,11 +161,11 @@ class PayrollCalculationService
 
             if ($existing) {
                 $exBase = $existing->status !== 'paid' ? $baseSalary : (float) $existing->base_salary;
-                $exHkBonus = (float) $existing->housekeeping_bonus;
+                $exHkBonus = $existing->status !== 'paid' ? $hkBonus : (float) $existing->housekeeping_bonus;
                 $exStandbyBonus = (float) $existing->standby_bonus;
-                $exFdFirst = (float) $existing->frontdesk_first_night_bonus;
-                $exFdNext = (float) $existing->frontdesk_next_nights_bonus_share;
-                $exPerf = (float) $existing->performance_bonus;
+                $exFdFirst = $existing->status !== 'paid' ? $fdFirstNightBonus : (float) $existing->frontdesk_first_night_bonus;
+                $exFdNext = $existing->status !== 'paid' ? $fdNextNightsShare : (float) $existing->frontdesk_next_nights_bonus_share;
+                $exPerf = $existing->status !== 'paid' ? $performanceBonus : (float) $existing->performance_bonus;
                 $exOvertime = (float) $existing->overtime_bonus;
                 $exCustomAllow = $customAllowance;
 
@@ -230,6 +230,7 @@ class PayrollCalculationService
                     'join_date' => $s->join_date ? Carbon::parse($s->join_date)->toDateString() : null,
                     'resign_date' => $s->resign_date ? Carbon::parse($s->resign_date)->toDateString() : null,
                     'bonus_finalized' => (bool) $bonusRecord,
+                    'hk_points' => (float) ($hkPointsDetails['total_points'] ?? ($existing->points_details['total_points'] ?? 0.0)),
                     'hk_location' => $s->hk_location ?? ($s->role === 'housekeeping' ? 'selatan' : null),
                     'kpi_details' => $existing->kpi_details ?? ($bonusRecord?->details['kpi'] ?? []),
                     'points_details' => $existing->points_details && count($existing->points_details) > 0 ? $existing->points_details : $hkPointsDetails,
@@ -291,6 +292,7 @@ class PayrollCalculationService
                     'prorated' => $prorationFactor < 1.0,
                     'active_employment_days' => $activeDays,
                     'bonus_finalized' => (bool) $bonusRecord,
+                    'hk_points' => (float) ($hkPointsDetails['total_points'] ?? 0.0),
                     'hk_location' => $s->hk_location ?? ($s->role === 'housekeeping' ? 'selatan' : null),
                     'kpi_details' => $bonusRecord?->details['kpi'] ?? [],
                     'points_details' => $hkPointsDetails,
