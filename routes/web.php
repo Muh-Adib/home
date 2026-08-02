@@ -155,6 +155,14 @@ Route::controller(PaymentController::class)->group(function () {
     Route::get('/booking/{booking:booking_number}/payment', 'create')->name('payments.create');
     Route::post('/booking/{booking:booking_number}/payment', 'store')->name('payments.store');
     Route::post('/booking/{booking:booking_number}/payment/cancel-pending', 'cancelPending')->name('payments.cancel-pending');
+
+    // Secure token-based payment routes (guest-accessible, token provides auth)
+    Route::get('booking/{booking:booking_number}/payment/{token}', 'securePayment')
+        ->name('booking.secure-payment')
+        ->where('token', '[a-zA-Z0-9]{32}');
+    Route::post('booking/{booking:booking_number}/payment/{token}', 'securePaymentStore')
+        ->name('booking.secure-payment.store')
+        ->where('token', '[a-zA-Z0-9]{32}');
 });
 
 // Public Review Routes

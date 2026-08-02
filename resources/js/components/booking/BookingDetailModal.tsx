@@ -427,7 +427,7 @@ export default function BookingDetailModal({
     };
 
     const copyPaymentLink = () => {
-        const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
+        const link = booking.payment_link || (booking.payment_token ? `${window.location.origin}/booking/${booking.booking_number}/payment/${booking.payment_token}` : `${window.location.origin}/booking/${booking.booking_number}/payment`);
         navigator.clipboard.writeText(link);
         toast.success('Link pembayaran disalin ke clipboard!');
     };
@@ -455,8 +455,8 @@ export default function BookingDetailModal({
     };
 
     const getWhatsAppTemplateMessage = (templateKey: string): string => {
-        const link = `${window.location.origin}/booking/${booking.booking_number}/payment`;
-        const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment?payment_token=${booking.payment_token}`;
+        const link = booking.payment_link || (booking.payment_token ? `${window.location.origin}/booking/${booking.booking_number}/payment/${booking.payment_token}` : `${window.location.origin}/booking/${booking.booking_number}/payment`);
+        const reviewLink = `${window.location.origin}/booking/${booking.booking_number}/payment${booking.payment_token ? `/${booking.payment_token}` : ''}`;
         const guestsDetail = `${booking.guest_count} Orang${booking.guest_male || booking.guest_female || booking.guest_children
             ? ` (Pria: ${booking.guest_male || 0}, Wanita: ${booking.guest_female || 0}, Anak <10th: ${booking.guest_children || 0})`
             : ''

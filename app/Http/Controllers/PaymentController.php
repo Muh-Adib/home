@@ -119,19 +119,19 @@ class PaymentController extends Controller
                 ->with('error', 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).');
         }
 
-        // Authorization check for auth user or token
+        // Authorization check for auth user or guest access
         $token = $request->query('token');
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
+        } elseif ($token && ! $booking->isPaymentTokenValid($token)) {
+            // Invalid token was explicitly provided
+            return redirect()->route('home')
+                ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
         } else {
-            if ($token && $booking->isPaymentTokenValid($token)) {
-                // Valid token query parameter
-            } elseif (! $token && $booking->payment_token && $booking->isPaymentTokenValid($booking->payment_token)) {
-                // Direct plain URL access for valid booking: redirect to secure token link
-                return redirect()->to($booking->payment_link);
-            } else {
-                return redirect()->route('home')
-                    ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
+            // Guest access (no token or valid token) — allowed for non-expired bookings
+            // Ensure payment token exists for future secure URLs
+            if (! $booking->payment_token) {
+                $booking->generatePaymentToken();
             }
         }
 
@@ -262,20 +262,16 @@ class PaymentController extends Controller
                 ->withErrors(['error' => 'Link pembayaran ini telah kadaluarsa (telah melewati 1 hari setelah tanggal check-out).']);
         }
 
-        // Authorization check for auth user or token
+        // Authorization check for auth user or guest access
         $token = $request->input('token') ?? $request->query('token');
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
-        } else {
-            if ($token && $booking->isPaymentTokenValid($token)) {
-                // Valid token
-            } elseif (! $token && $booking->payment_token && $booking->isPaymentTokenValid($booking->payment_token)) {
-                // Valid token on booking model
-            } else {
-                return redirect()->route('home')
-                    ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
-            }
+        } elseif ($token && ! $booking->isPaymentTokenValid($token)) {
+            // Invalid token was explicitly provided
+            return redirect()->route('home')
+                ->with('error', 'Link pembayaran tidak valid atau sudah kadaluarsa.');
         }
+        // else: Guest access allowed — protected by checkout+1 day expiration
 
         $paidAmount = (float) $booking->payments()->where('payment_status', 'verified')->sum('amount');
         $actualRemaining = max(0.0, (float) $booking->total_amount - $paidAmount);
@@ -426,12 +422,16 @@ class PaymentController extends Controller
         // Authorization check
         if (Auth::check()) {
             $this->authorize('makePayment', $booking);
+        } elseif ($this->isPaymentLinkExpired($booking)) {
+            return redirect()->route('home')
+                ->with('error', 'Link pembayaran ini telah kadaluarsa.');
         } else {
             $token = $request->input('token') ?? $request->query('token');
-            if (! $token || ! $booking->isPaymentTokenValid($token)) {
+            if ($token && ! $booking->isPaymentTokenValid($token)) {
                 return redirect()->route('home')
                     ->with('error', 'Akses tidak diizinkan atau link pembayaran tidak valid.');
             }
+            // else: Guest access allowed — protected by checkout+1 day expiration
         }
 
         $booking->payments()

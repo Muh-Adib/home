@@ -125,24 +125,44 @@ class PaymentUniqueCodeAndExpirationTest extends TestCase
         $this->assertFalse($booking->isPaymentTokenValid($token));
     }
 
-    public function test_cancel_pending_requires_authorization_or_valid_token(): void
+    public function test_cancel_pending_allowed_for_guest_and_rejected_when_expired(): void
     {
         $property = Property::factory()->create();
         $booking = Booking::factory()->create([
             'property_id' => $property->id,
             'total_amount' => 1000000,
             'dp_amount' => 500000,
+            'check_out' => now()->addDays(3),
         ]);
 
         $gatewayService = app(PaymentGatewayService::class);
         $payment = $gatewayService->initiateGatewayPayment($booking, 500000, 'dp');
 
-        // Unauthenticated user without token gets redirected and payment remains active
+        // Guest (no auth) CAN cancel pending for non-expired booking
         $response = $this->post(route('payments.cancel-pending', $booking->booking_number));
-        $response->assertRedirect(route('home'));
+        $response->assertRedirect();
 
         $payment->refresh();
-        $this->assertEquals('menunggu', $payment->status);
+        $this->assertEquals('batal', $payment->status);
+
+        // Create another payment for expired booking test
+        $expiredBooking = Booking::factory()->create([
+            'property_id' => $property->id,
+            'total_amount' => 1000000,
+            'dp_amount' => 500000,
+            'check_out' => now()->addDays(3), // Create with valid checkout first
+        ]);
+        $expiredPayment = $gatewayService->initiateGatewayPayment($expiredBooking, 500000, 'dp');
+
+        // Now backdate the checkout so the link is expired
+        $expiredBooking->update(['check_out' => now()->subDays(5)]);
+
+        // Expired booking → rejected
+        $response = $this->post(route('payments.cancel-pending', $expiredBooking->booking_number));
+        $response->assertRedirect(route('home'));
+
+        $expiredPayment->refresh();
+        $this->assertEquals('menunggu', $expiredPayment->status);
     }
 
     public function test_client_unique_code_input_is_ignored_by_server(): void

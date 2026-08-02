@@ -29,14 +29,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(PaymentController::class)->group(function () {
         Route::get('/my-payments', 'myPayments')->name('my-payments');
         Route::get('/my-payments/{payment}', 'myPaymentShow')->name('my-payments.show');
-
-        // Secure payment routes
-        Route::get('booking/{booking:booking_number}/payment/{token}', 'securePayment')
-            ->name('booking.secure-payment')
-            ->where('token', '[a-zA-Z0-9]{32}');
-        Route::post('booking/{booking:booking_number}/payment/{token}', 'securePaymentStore')
-            ->name('booking.secure-payment.store')
-            ->where('token', '[a-zA-Z0-9]{32}');
     });
 
     // Authenticated API Routes

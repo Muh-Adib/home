@@ -528,8 +528,8 @@ class Booking extends Model
     {
         return Attribute::make(
             get: function () {
-                // Generate payment token if not exists
-                if (! $this->payment_token) {
+                // Generate payment token if not exists or if expired
+                if (! $this->payment_token || ($this->payment_token_expires_at && $this->payment_token_expires_at->isPast())) {
                     $this->generatePaymentToken();
                 }
 

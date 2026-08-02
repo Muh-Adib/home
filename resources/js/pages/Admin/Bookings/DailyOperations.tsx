@@ -120,7 +120,7 @@ export default function DailyOperations({ bookings, properties, filters }: Daily
         let label = 'Hubungi Tamu';
         let colorClass = 'text-green-700 border-green-200 hover:bg-green-50';
 
-        const paymentLink = `${window.location.origin}/booking/${booking.booking_number}/payment`;
+        const paymentLink = booking.payment_link || (booking.payment_token ? `${window.location.origin}/booking/${booking.booking_number}/payment/${booking.payment_token}` : `${window.location.origin}/booking/${booking.booking_number}/payment`);
         const phone = booking.guest_phone ? booking.guest_phone.replace(/[^0-9]/g, '') : '';
         const waPhone = phone.startsWith('0') ? '62' + phone.substring(1) : phone;
 

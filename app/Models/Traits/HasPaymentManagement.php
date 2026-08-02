@@ -111,9 +111,19 @@ trait HasPaymentManagement
             }
         }
 
-        return $this->payment_token === $token &&
-               $this->payment_token_expires_at &&
-               $this->payment_token_expires_at->isFuture();
+        if ($this->payment_token !== $token) {
+            return false;
+        }
+
+        if (! $this->payment_token_expires_at || $this->payment_token_expires_at->isPast()) {
+            $expiresAt = now()->addDays(7);
+            $this->newQuery()->where($this->getKeyName(), $this->getKey())->update([
+                'payment_token_expires_at' => $expiresAt,
+            ]);
+            $this->payment_token_expires_at = $expiresAt;
+        }
+
+        return true;
     }
 
     /**
