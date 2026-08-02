@@ -308,7 +308,7 @@ class CheckInOutController extends Controller
     protected function getCheckInAddons(Booking $booking, string $targetDateStr): array
     {
         $firstDayRev = BookingDailyRevenue::where('booking_id', $booking->id)
-            ->whereDate('tanggal', $targetDateStr)
+            ->whereBetween('tanggal', [$targetDateStr.' 00:00:00', $targetDateStr.' 23:59:59'])
             ->first();
 
         $firstDayExtraBeds = $firstDayRev ? (int) $firstDayRev->extra_bed_count : 0;

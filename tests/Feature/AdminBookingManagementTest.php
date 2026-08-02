@@ -10,6 +10,7 @@ use App\Models\Property;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Http\UploadedFile;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -226,6 +227,7 @@ class AdminBookingManagementTest extends TestCase
             'rate_override' => true,
             'override_amount' => 2000000,
             'override_reason' => 'Special discount for VIP customer',
+            'services' => [],
         ];
 
         $response = $this->actingAs($this->admin)
@@ -498,6 +500,8 @@ class AdminBookingManagementTest extends TestCase
 
     public function test_can_store_payment_via_api(): void
     {
+        $file = UploadedFile::fake()->image('proof.jpg');
+
         $booking = Booking::factory()->create([
             'property_id' => $this->property->id,
             'total_amount' => 1000000,
@@ -512,6 +516,7 @@ class AdminBookingManagementTest extends TestCase
                 'payment_type' => 'dp',
                 'payment_status' => 'verified',
                 'payment_date' => now()->toDateString(),
+                'proof_of_payment' => $file,
             ]);
 
         $response->assertStatus(200);

@@ -8,6 +8,7 @@ use App\Models\BookingGuest;
 use App\Models\BookingService;
 use App\Models\Property;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,6 +18,7 @@ class CheckInOutAddonsTest extends TestCase
 
     public function test_generate_text_includes_first_day_extrabed_and_extra_services(): void
     {
+        Carbon::setTestNow(now());
         $admin = User::factory()->create(['role' => 'super_admin']);
 
         $property = Property::factory()->create([

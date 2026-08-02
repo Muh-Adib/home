@@ -366,33 +366,44 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin')->name('admin.')
     });
 });
 
-// Finance Management (Allowed for finance, manager, owner roles)
-Route::middleware(['auth', 'role:super_admin,property_owner,property_manager,finance'])->prefix('admin')->name('admin.')->group(function () {
+// Finance Management - Expenses allowed for manager and finance; general finance/incomes/wallets restricted to super_admin and property_owner
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     Route::controller(FinanceController::class)->group(function () {
-        Route::get('finance', 'index')->name('finance.index');
-        Route::get('finance/incomes', 'incomes')->name('finance.incomes');
-        Route::get('finance/incomes/export', 'exportIncomes')->name('finance.incomes.export');
-        Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
-        Route::get('finance/expenses', 'expenses')->name('finance.expenses');
-        Route::get('finance/expenses/export', 'exportExpenses')->name('finance.expenses.export');
-        Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
-        Route::post('finance/expenses/{expense}/update', 'updateExpense')->name('finance.expenses.update')->middleware('role:super_admin,property_manager');
-        Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
-        Route::get('finance/wallets', 'wallets')->name('finance.wallets');
-        Route::get('finance/report', 'financialReport')->name('finance.report');
-        Route::post('finance/wallets', 'storeWallet')->name('finance.wallets.store');
-        Route::post('finance/wallets/transfer', 'transferWallet')->name('finance.wallets.transfer');
-        Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
-        Route::post('finance/wallets/{wallet}/adjust', 'adjustBalance')->name('finance.wallets.adjust');
-        Route::get('finance/wallets/{wallet}/report', 'walletReport')->name('finance.wallets.report');
-        Route::put('finance/wallets/{wallet}', 'updateWallet')->name('finance.wallets.update');
-        Route::delete('finance/wallets/{wallet}', 'destroyWallet')->name('finance.wallets.destroy');
-        Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');
+        // Expenses (Accessible to super_admin, property_owner, property_manager, finance)
+        Route::middleware('role:super_admin,property_owner,property_manager,finance')->group(function () {
+            Route::get('finance/expenses', 'expenses')->name('finance.expenses');
+            Route::get('finance/expenses/export', 'exportExpenses')->name('finance.expenses.export');
+            Route::post('finance/expenses', 'storeExpense')->name('finance.expenses.store');
+            Route::post('finance/expenses/{expense}/receipt', 'storeExpenseReceipt')->name('finance.expenses.receipt');
+        });
 
-        // Employee Loans (Casbon)
-        Route::get('finance/loans', 'loans')->name('finance.loans');
-        Route::post('finance/loans', 'storeLoan')->name('finance.loans.store');
-        Route::post('finance/loans/{loan}/payments', 'storeLoanPayment')->name('finance.loans.payments.store');
+        // Expenses Update (Restricted to super_admin and property_manager)
+        Route::post('finance/expenses/{expense}/update', 'updateExpense')
+            ->name('finance.expenses.update')
+            ->middleware('role:super_admin,property_manager');
+
+        // Restricted Finance, Incomes, Wallets, Reports, Loans (Restricted to super_admin and property_owner)
+        Route::middleware('role:super_admin,property_owner')->group(function () {
+            Route::get('finance', 'index')->name('finance.index');
+            Route::get('finance/incomes', 'incomes')->name('finance.incomes');
+            Route::get('finance/incomes/export', 'exportIncomes')->name('finance.incomes.export');
+            Route::post('finance/incomes', 'storeIncome')->name('finance.incomes.store');
+            Route::get('finance/wallets', 'wallets')->name('finance.wallets');
+            Route::get('finance/report', 'financialReport')->name('finance.report');
+            Route::post('finance/wallets', 'storeWallet')->name('finance.wallets.store');
+            Route::post('finance/wallets/transfer', 'transferWallet')->name('finance.wallets.transfer');
+            Route::post('finance/wallets/{wallet}/transactions', 'storeWalletTransaction')->name('finance.wallets.transactions.store');
+            Route::post('finance/wallets/{wallet}/adjust', 'adjustBalance')->name('finance.wallets.adjust');
+            Route::get('finance/wallets/{wallet}/report', 'walletReport')->name('finance.wallets.report');
+            Route::put('finance/wallets/{wallet}', 'updateWallet')->name('finance.wallets.update');
+            Route::delete('finance/wallets/{wallet}', 'destroyWallet')->name('finance.wallets.destroy');
+            Route::patch('finance/payment-methods/{paymentMethod}/wallet', 'mapPaymentMethodToWallet')->name('finance.payment-methods.map-wallet');
+
+            // Employee Loans (Casbon)
+            Route::get('finance/loans', 'loans')->name('finance.loans');
+            Route::post('finance/loans', 'storeLoan')->name('finance.loans.store');
+            Route::post('finance/loans/{loan}/payments', 'storeLoanPayment')->name('finance.loans.payments.store');
+        });
 
         // E-Statement mapping / sync
         Route::get('finance/unmapped-debit-mutations', 'unmappedDebitMutations')->name('finance.unmapped-debit-mutations');
