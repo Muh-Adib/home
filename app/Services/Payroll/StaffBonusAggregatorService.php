@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\StaffPayroll;
 use App\Models\StaffPerformanceBonus;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -120,6 +121,26 @@ class StaffBonusAggregatorService
                         'finalized_by' => $finalize ? $finalizer?->id : null,
                     ]
                 );
+
+                // Also update active StaffPayroll record if present
+                $payroll = StaffPayroll::where('user_id', $s->id)
+                    ->where('month', $month)
+                    ->where('year', $year)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($payroll) {
+                    $payroll->housekeeping_bonus = $hkBonus;
+                    $payroll->frontdesk_first_night_bonus = $fdFirstNightBonus;
+                    $payroll->frontdesk_next_nights_bonus_share = $fdNextNightsShare;
+                    $payroll->performance_bonus = $kpiBonus;
+
+                    $totalBonuses = (float) $payroll->housekeeping_bonus + (float) $payroll->standby_bonus + (float) $payroll->frontdesk_first_night_bonus + (float) $payroll->frontdesk_next_nights_bonus_share + (float) $payroll->performance_bonus + (float) $payroll->overtime_bonus + (float) $payroll->custom_allowance;
+                    $totalDeductions = (float) $payroll->late_deduction + (float) $payroll->loan_deduction + (float) $payroll->sick_deduction + (float) $payroll->permission_deduction + (float) $payroll->absent_deduction + (float) $payroll->custom_deduction;
+
+                    $payroll->total_salary = max(0.0, (float) $payroll->base_salary + $totalBonuses - $totalDeductions);
+                    $payroll->save();
+                }
 
                 $results[$s->id] = $record;
             }
